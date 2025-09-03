@@ -1,0 +1,35 @@
+'use strict';
+const {
+  Model
+} = require('sequelize');
+module.exports = (sequelize, DataTypes) => {
+  class Order extends Model {
+    static associate(models) {
+      Order.belongsTo(models.User, { foreignKey: 'user_id', as: 'user' });
+      Order.hasMany(models.OrderItem, { foreignKey: 'order_id', as: 'orderItems' });
+    }
+  }
+  Order.init({
+    customer_name: DataTypes.STRING,
+    total: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false
+    },
+    notes: DataTypes.TEXT,
+    status: {
+      type: DataTypes.STRING,
+      defaultValue: 'pending'
+    },
+    payment_method: DataTypes.STRING,
+    timestamp: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW
+    }
+  }, {
+    sequelize,
+    modelName: 'Order',
+    tableName: 'orders',
+    timestamps: false
+  });
+  return Order;
+};

@@ -168,28 +168,26 @@
         });
 
         // --- Initialization on User Interaction ---
-        function initializeKitchen() {
+        function initializeKitchen(event) {
+            // Prevenir que el evento se propague si no es necesario
+            if (event) event.preventDefault();
+
             // Change status indicator
             statusIndicator.textContent = 'Conectado y esperando órdenes...';
             statusIndicator.classList.remove('bg-red-500', 'cursor-pointer');
             statusIndicator.classList.add('bg-green-500');
 
-            // Now that we have user interaction, we can set up listeners and load data
-            socket.on('connect_error', (err) => {
-                console.error('Error de conexión de Socket:', err.message);
-                ordersContainer.innerHTML = `<p class="text-red-500 col-span-full text-center">Error de autenticación. No se pueden recibir órdenes en tiempo real. Por favor, inicie sesión de nuevo.</p>`;
-            });
-
-            socket.on('new_order', (order) => {
-                notificationSound.play();
-                renderOrderCard(order);
-            });
+            // Intentar reproducir un sonido silencioso para "desbloquear" el audio
+            notificationSound.play().catch(e => console.warn("La reproducción automática de audio fue bloqueada por el navegador. Se activará con la primera orden."));
 
             loadPendingOrders();
+
+            // Remover el listener para que no se pueda hacer clic de nuevo
+            statusIndicator.removeEventListener('click', initializeKitchen);
         }
 
         // The listener runs only once after the first click.
-        statusIndicator.addEventListener('click', initializeKitchen, { once: true });
+        statusIndicator.addEventListener('click', initializeKitchen);
     </script>
 </body>
 

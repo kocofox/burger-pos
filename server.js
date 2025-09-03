@@ -1,12 +1,13 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '.env') });
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
 const path = require('path');
-const mysql = require('mysql2/promise');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const PDFDocument = require('pdfkit');
+const db = require('./models');
+const { Op } = require('sequelize');
 
 const app = express();
 const server = http.createServer(app);
@@ -14,21 +15,18 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 
-// --- Configuración de la Base de Datos ---
-const pool = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT || 3306,
-    database: process.env.DB_DATABASE,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-});
-
 // Middleware para parsear JSON y servir archivos estáticos
 app.use(express.json());
 app.use(express.static(__dirname));
+
+// Middleware para deshabilitar la caché en todas las rutas de la API
+app.use('/api', (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+    next();
+});
 
 // =================================================================
 // --- API ROUTES ---
@@ -38,36 +36,41 @@ app.use(express.static(__dirname));
 // Obtener el menú
 app.get('/api/menu', async (req, res) => {
     try {
-        // 1. Obtener todos los productos
-        const [products] = await pool.query(
-            `SELECT p.id, p.name, p.price, p.stock, p.stock_type, c.name as category, c.is_customizable, p.category_id
-             FROM products p JOIN categories c ON p.category_id = c.id
-             ORDER BY c.display_order ASC, p.name ASC`
-        );
+        const products = await db.Product.findAll({
+            include: [{ model: db.Category, as: 'category' }],
+            order: [
+                [{ model: db.Category, as: 'category' }, 'display_order', 'ASC'],
+                ['name', 'ASC']
+            ]
+        });
 
-        // 2. Obtener las recetas de los productos compuestos
-        const [recipes] = await pool.query(
-            `SELECT pi.product_id, i.stock as ingredient_stock, pi.quantity_required 
-             FROM product_ingredients pi 
-             JOIN ingredients i ON pi.ingredient_id = i.id`
-        );
+        const recipes = await db.ProductIngredient.findAll({
+            include: [{ model: db.Ingredient, as: 'ingredient' }]
+        });
 
         // 3. Calcular el stock dinámico para productos compuestos
         const productsWithCalculatedStock = products.map(product => {
+            const productJSON = product.toJSON();
             if (product.stock_type === 'COMPOUND') {
-                const productRecipe = recipes.filter(r => r.product_id === product.id);
+                const productRecipe = recipes.filter(r => r.product_id === productJSON.id);
                 if (productRecipe.length === 0) {
-                    product.stock = 0; // Si no tiene receta, no se puede preparar
+                    productJSON.stock = 0; // Si no tiene receta, no se puede preparar
                 } else {
-                    // El stock es el mínimo de lo que se puede preparar con cada ingrediente
-                    const possibleStock = productRecipe.map(ing => Math.floor(ing.ingredient_stock / ing.quantity_required));
-                    product.stock = Math.min(...possibleStock);
+                    const possibleStock = productRecipe.map(ing => Math.floor(ing.ingredient.stock / ing.quantity_required));
+                    productJSON.stock = Math.min(...possibleStock);
                 }
             }
+            return productJSON;
+        });
+
+        // Aplanar la respuesta para que el frontend no tenga que lidiar con objetos anidados
+        const flatProducts = productsWithCalculatedStock.map(product => {
+            product.is_customizable = product.category.is_customizable; // Preservar el campo is_customizable
+            product.category = product.category.name; // Reemplazar el objeto categoría por su nombre
             return product;
         });
 
-        res.json(productsWithCalculatedStock);
+        res.json(flatProducts);
     } catch (error) {
         console.error("Error al leer el menú:", error);
         res.status(500).send('Error interno del servidor');
@@ -77,7 +80,7 @@ app.get('/api/menu', async (req, res) => {
 // --- Admin Management: Ingredients (CRUD) ---
 app.get('/api/ingredients', verifyToken, checkRole(['admin']), async (req, res) => {
     try {
-        const [ingredients] = await pool.query('SELECT id, name, stock FROM ingredients ORDER BY name ASC');
+        const ingredients = await db.Ingredient.findAll({ order: [['name', 'ASC']] });
         res.json(ingredients);
     } catch (error) {
         console.error("Error al leer los insumos:", error);
@@ -91,11 +94,10 @@ app.post('/api/ingredients', verifyToken, checkRole(['admin']), async (req, res)
         return res.status(400).json({ message: 'Nombre y stock son requeridos.' });
     }
     try {
-        await pool.query('INSERT INTO ingredients (name, stock) VALUES (?, ?)', [name, stock]);
+        await db.Ingredient.create({ name, stock });
         res.status(201).json({ message: 'Insumo creado exitosamente.' });
     } catch (error) {
-        console.error("Error al crear insumo:", error);
-        if (error.code === 'ER_DUP_ENTRY') {
+        if (error.name === 'SequelizeUniqueConstraintError') {
             return res.status(409).json({ message: 'Ya existe un insumo con ese nombre.' });
         }
         res.status(500).send('Error interno del servidor');
@@ -109,14 +111,14 @@ app.put('/api/ingredients/:id', verifyToken, checkRole(['admin']), async (req, r
         return res.status(400).json({ message: 'Nombre y stock son requeridos.' });
     }
     try {
-        const [result] = await pool.query('UPDATE ingredients SET name = ?, stock = ? WHERE id = ?', [name, stock, id]);
-        if (result.affectedRows === 0) {
+        const [affectedRows] = await db.Ingredient.update({ name, stock }, { where: { id } });
+        if (affectedRows === 0) {
             return res.status(404).json({ message: 'Insumo no encontrado.' });
         }
         res.status(200).json({ message: 'Insumo actualizado.' });
     } catch (error) {
         console.error("Error al actualizar insumo:", error);
-        if (error.code === 'ER_DUP_ENTRY') {
+        if (error.name === 'SequelizeUniqueConstraintError') {
             return res.status(409).json({ message: 'Ya existe otro insumo con ese nombre.' });
         }
         res.status(500).send('Error interno del servidor');
@@ -126,14 +128,13 @@ app.put('/api/ingredients/:id', verifyToken, checkRole(['admin']), async (req, r
 app.delete('/api/ingredients/:id', verifyToken, checkRole(['admin']), async (req, res) => {
     const { id } = req.params;
     try {
-        const [result] = await pool.query('DELETE FROM ingredients WHERE id = ?', [id]);
-        if (result.affectedRows === 0) {
+        const affectedRows = await db.Ingredient.destroy({ where: { id } });
+        if (affectedRows === 0) {
             return res.status(404).json({ message: 'Insumo no encontrado.' });
         }
         res.status(200).json({ message: 'Insumo eliminado exitosamente.' });
     } catch (error) {
-        console.error("Error al eliminar insumo:", error);
-        if (error.code === 'ER_ROW_IS_REFERENCED_2') {
+        if (error.name === 'SequelizeForeignKeyConstraintError') {
             return res.status(400).json({ message: 'No se puede eliminar el insumo porque está siendo usado en una o más recetas.' });
         }
         res.status(500).send('Error interno del servidor');
@@ -144,11 +145,49 @@ app.delete('/api/ingredients/:id', verifyToken, checkRole(['admin']), async (req
 // Obtener las cremas
 app.get('/api/sauces', async (req, res) => {
     try {
-        const [sauces] = await pool.query('SELECT name FROM sauces ORDER BY name ASC');
-        // Enviamos un array simple de strings, que es lo que el frontend espera
-        res.json(sauces.map(s => s.name));
+        const sauces = await db.Sauce.findAll({ order: [['name', 'ASC']] });
+        res.json(sauces); // Devolvemos el objeto completo para la gestión
     } catch (error) {
         console.error("Error al leer las cremas:", error);
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+app.post('/api/sauces', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { name } = req.body;
+    if (!name) {
+        return res.status(400).json({ message: 'El nombre es requerido.' });
+    }
+    try {
+        await db.Sauce.create({ name });
+        res.status(201).json({ message: 'Crema creada exitosamente.' });
+    } catch (error) {
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            return res.status(409).json({ message: 'Ya existe una crema con ese nombre.' });
+        }
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+app.put('/api/sauces/:id', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { id } = req.params;
+    const { name } = req.body;
+    try {
+        const [affectedRows] = await db.Sauce.update({ name }, { where: { id } });
+        if (affectedRows === 0) return res.status(404).json({ message: 'Crema no encontrada.' });
+        res.status(200).json({ message: 'Crema actualizada.' });
+    } catch (error) {
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+app.delete('/api/sauces/:id', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const affectedRows = await db.Sauce.destroy({ where: { id } });
+        if (affectedRows === 0) return res.status(404).json({ message: 'Crema no encontrada.' });
+        res.status(200).json({ message: 'Crema eliminada.' });
+    } catch (error) {
         res.status(500).send('Error interno del servidor');
     }
 });
@@ -156,7 +195,7 @@ app.get('/api/sauces', async (req, res) => {
 // Obtener métodos de pago
 app.get('/api/payment-methods', async (req, res) => {
     try {
-        const [methods] = await pool.query('SELECT name FROM payment_methods ORDER BY id ASC');
+        const methods = await db.PaymentMethod.findAll({ order: [['id', 'ASC']] });
         res.json(methods.map(m => m.name));
     } catch (error) {
         console.error("Error al leer los métodos de pago:", error);
@@ -167,7 +206,7 @@ app.get('/api/payment-methods', async (req, res) => {
 // Obtener el orden de las categorías
 app.get('/api/categories/ordered', async (req, res) => {
     try {
-        const [categories] = await pool.query('SELECT name, display_name FROM categories ORDER BY display_order ASC, name ASC');
+        const categories = await db.Category.findAll({ order: [['display_order', 'ASC'], ['name', 'ASC']] });
         res.json(categories);
     } catch (error) {
         console.error("Error al leer las categorías ordenadas:", error);
@@ -178,7 +217,7 @@ app.get('/api/categories/ordered', async (req, res) => {
 // --- Admin Management: Categories ---
 app.get('/api/categories', verifyToken, checkRole(['admin']), async (req, res) => {
     try {
-        const [categories] = await pool.query('SELECT id, name, display_name FROM categories ORDER BY display_order ASC, name ASC');
+        const categories = await db.Category.findAll({ order: [['display_order', 'ASC'], ['name', 'ASC']] });
         res.json(categories);
     } catch (error) {
         console.error("Error al leer las categorías:", error);
@@ -191,34 +230,30 @@ app.get('/api/categories', verifyToken, checkRole(['admin']), async (req, res) =
 app.post('/api/orders', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     const { customerName, items, total, paymentMethod, notes } = req.body;
     const userId = req.user.id;
-    const connection = await pool.getConnection();
+    const t = await db.sequelize.transaction();
     try {
+
         // VERIFICACIÓN DE CIERRE DE DÍA
         const today = new Date().toISOString().split('T')[0];
-        const [closureStatus] = await connection.query(
-            'SELECT status FROM daily_closures WHERE closure_date = ?',
-            [today]
-        );
+        const closureStatus = await db.DailyClosure.findByPk(today);
 
-        if (closureStatus.length > 0 && closureStatus[0].status === 'closed') {
+        if (closureStatus && closureStatus.status === 'closed') {
             // Si el día está cerrado, se rechaza el pedido con un error claro.
             return res.status(403).json({ message: 'El día ya ha sido cerrado. No se pueden registrar nuevos pedidos.' });
         }
 
-        await connection.beginTransaction();
-
-        // 1. Obtener información de stock y recetas para los productos del pedido y bloquear las filas para la transacción
+        // 1. Obtener información de stock y recetas
         const productIds = items.map(item => item.productId);
         if (productIds.length === 0) {
             return res.status(400).json({ message: 'El carrito está vacío.' });
         }
-        const [productsInCart] = await connection.query('SELECT id, name, stock, stock_type FROM products WHERE id IN (?) FOR UPDATE', [productIds]);
-        const [recipes] = await connection.query('SELECT * FROM product_ingredients WHERE product_id IN (?)', [productIds]);
-        
+        const productsInCart = await db.Product.findAll({ where: { id: productIds }, transaction: t, lock: true });
+        const recipes = await db.ProductIngredient.findAll({ where: { product_id: productIds }, transaction: t });
+
         const ingredientIds = [...new Set(recipes.map(r => r.ingredient_id))];
         let ingredientsInCart = [];
         if (ingredientIds.length > 0) {
-            [ingredientsInCart] = await connection.query('SELECT id, name, stock FROM ingredients WHERE id IN (?) FOR UPDATE', [ingredientIds]);
+            ingredientsInCart = await db.Ingredient.findAll({ where: { id: ingredientIds }, transaction: t, lock: true });
         }
 
         // 2. Verificar stock y preparar actualizaciones
@@ -229,108 +264,84 @@ app.post('/api/orders', verifyToken, checkRole(['admin', 'cashier']), async (req
 
             if (product.stock_type === 'SIMPLE') {
                 if (product.stock < item.quantity) {
-                    await connection.rollback();
+                    await t.rollback();
                     return res.status(400).json({ message: `Stock insuficiente para ${product.name}. Solo quedan ${product.stock}.` });
                 }
-                stockUpdates.push(connection.query('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, product.id]));
+                stockUpdates.push(product.decrement('stock', { by: item.quantity, transaction: t }));
             } else { // COMPOUND
                 const productRecipe = recipes.filter(r => r.product_id === product.id);
                 if (productRecipe.length === 0) {
-                    await connection.rollback();
+                    await t.rollback();
                     return res.status(400).json({ message: `El producto ${product.name} no tiene una receta definida y no se puede vender.` });
                 }
                 for (const recipeItem of productRecipe) {
                     const ingredient = ingredientsInCart.find(i => i.id === recipeItem.ingredient_id);
                     const requiredQuantity = recipeItem.quantity_required * item.quantity;
                     if (!ingredient || ingredient.stock < requiredQuantity) {
-                        await connection.rollback();
+                        await t.rollback();
                         const ingredientName = ingredient ? ingredient.name : `Ingrediente ID ${recipeItem.ingredient_id}`;
                         const availableStock = ingredient ? ingredient.stock : 0;
                         return res.status(400).json({ message: `Stock insuficiente del insumo '${ingredientName}' para preparar ${item.quantity}x ${product.name}. Se necesitan ${requiredQuantity}, solo hay ${availableStock}.` });
                     }
-                    stockUpdates.push(connection.query('UPDATE ingredients SET stock = stock - ? WHERE id = ?', [recipeItem.quantity_required * item.quantity, recipeItem.ingredient_id]));
+                    stockUpdates.push(ingredient.decrement('stock', { by: requiredQuantity, transaction: t }));
                 }
             }
         }
 
-        // 3. Si las verificaciones de stock pasaron, insertar el pedido
-        const [orderResult] = await connection.query(
-            'INSERT INTO orders (customer_name, total, payment_method, user_id, notes) VALUES (?, ?, ?, ?, ?)',
-            [customerName, total, paymentMethod, userId, notes]
-        );
-        const orderId = orderResult.insertId;
+        // 3. Insertar el pedido
+        const order = await db.Order.create({
+            customer_name: customerName,
+            total,
+            payment_method: paymentMethod,
+            user_id: userId,
+            notes
+        }, { transaction: t });
 
-        // 4. Insertar los items del pedido en la tabla 'order_items'
-        const orderItemsPromises = items.map(item => {
-            return connection.query(
-                'INSERT INTO order_items (order_id, product_id, quantity, price_at_time, sauces) VALUES (?, ?, ?, ?, ?)',
-                [orderId, item.productId, item.quantity, item.price, JSON.stringify(item.sauces || [])]
-            );
-        });
+        // 4. Insertar items y actualizar stock
+        const orderItemsData = items.map(item => ({ ...item, order_id: order.id, product_id: item.productId, price_at_time: item.price, sauces: JSON.stringify(item.sauces || []) }));
+        await db.OrderItem.bulkCreate(orderItemsData, { transaction: t });
+        await Promise.all(stockUpdates);
 
-        // 5. Ejecutar todas las promesas en paralelo (inserción de items y actualización de stock/insumos)
-        await Promise.all([
-            ...orderItemsPromises,
-            ...stockUpdates
-        ]);
-
-        await connection.commit();
+        await t.commit();
 
         // Preparamos el objeto para enviarlo a la cocina
         const orderForKitchen = {
-            ...req.body, // Contiene items, notes, etc.
-            id: orderId, // Añadimos el ID del pedido recién creado
+            ...req.body,
+            id: order.id,
             customer_name: customerName, // Estandarizamos a snake_case como en la DB
             timestamp: new Date().toISOString() // Usamos la hora del servidor para mayor precisión
         };
 
-        // Enviar el nuevo pedido a la cocina en tiempo real
         io.emit('new_order', orderForKitchen);
-        res.status(201).json({ message: 'Pedido recibido', orderId });
+        res.status(201).json({ message: 'Pedido recibido', orderId: order.id });
 
     } catch (error) {
-        await connection.rollback();
+        await t.rollback();
         console.error("Error al guardar el pedido:", error);
         res.status(500).send('Error interno del servidor');
-    } finally {
-        connection.release();
     }
 });
 
 // Get all pending orders for the kitchen
 app.get('/api/orders/pending', verifyToken, checkRole(['admin', 'kitchen']), async (req, res) => {
     try {
-        // 1. Get all pending orders
-        const [pendingOrders] = await pool.query(
-            `SELECT id, customer_name, notes, timestamp FROM orders WHERE status = 'pending' ORDER BY timestamp ASC`
-        );
+        const pendingOrders = await db.Order.findAll({
+            where: { status: 'pending' },
+            include: [{
+                model: db.OrderItem,
+                as: 'orderItems',
+                include: [{ model: db.Product, as: 'product' }]
+            }],
+            order: [['timestamp', 'ASC']]
+        });
 
-        if (pendingOrders.length === 0) {
-            return res.json([]);
-        }
-
-        const orderIds = pendingOrders.map(o => o.id);
-
-        // 2. Get all items for those orders
-        const [orderItems] = await pool.query(
-            `SELECT oi.order_id, oi.quantity, oi.sauces, p.name 
-             FROM order_items oi 
-             JOIN products p ON oi.product_id = p.id 
-             WHERE oi.order_id IN (?)`,
-            [orderIds]
-        );
-
-        // 3. Map items to their orders
         const ordersWithItems = pendingOrders.map(order => {
-            const items = orderItems
-                .filter(item => item.order_id === order.id)
-                .map(item => ({
-                    name: item.name,
-                    quantity: item.quantity,
-                    sauces: JSON.parse(item.sauces || '[]') // Sauces are stored as JSON string
-                }));
-            
-            return { ...order, items };
+            const items = order.orderItems.map(item => ({
+                name: item.product.name,
+                quantity: item.quantity,
+                sauces: JSON.parse(item.sauces || '[]')
+            }));
+            return { ...order.toJSON(), items };
         });
 
         res.json(ordersWithItems);
@@ -344,48 +355,39 @@ app.get('/api/orders/pending', verifyToken, checkRole(['admin', 'kitchen']), asy
 // --- Dashboard & Reports ---
 function buildReportWhereClause(user, date, tableAlias = '') {
     const { role, id: userId } = user;
-    const conditions = [];
-    const params = [];
-    const timestampField = tableAlias ? `${tableAlias}.timestamp` : 'timestamp';
-    const userIdField = tableAlias ? `${tableAlias}.user_id` : 'user_id';
+
+    const whereClause = {};
 
     if (date) {
-        // The date from the frontend is already a 'YYYY-MM-DD' string.
-        // Using it directly is simpler and avoids potential timezone issues.
-        conditions.push(`DATE(${timestampField}) = ?`);
-        params.push(date);
+        whereClause.timestamp = { [Op.between]: [`${date} 00:00:00`, `${date} 23:59:59`] };
     } else {
-        conditions.push(`DATE(${timestampField}) = CURDATE()`);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        whereClause.timestamp = { [Op.gte]: today };
     }
 
     if (role === 'cashier') {
-        conditions.push(`${userIdField} = ?`);
-        params.push(userId);
+        whereClause.user_id = userId;
     }
 
-    return {
-        clause: `WHERE ${conditions.join(' AND ')}`,
-        params: params
-    };
+    return { where: whereClause };
 }
 
 // Obtener datos para el dashboard (ventas y pedidos del día)
 app.get('/api/dashboard/data', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     const { date } = req.query;
     try {
-        const { clause: queryFilter, params: queryParams } = buildReportWhereClause(req.user, date);
+        const whereClause = buildReportWhereClause(req.user, date).where;
 
-        const [salesResult] = await pool.query(
-            `SELECT SUM(total) as totalSales FROM orders ${queryFilter}`,
-            queryParams
-        );
-        const [todaysOrders] = await pool.query(
-            `SELECT id, customer_name, total, status, timestamp, payment_method FROM orders ${queryFilter} ORDER BY timestamp DESC`,
-            queryParams
-        );
+        const totalSales = await db.Order.sum('total', { where: whereClause });
+
+        const todaysOrders = await db.Order.findAll({
+            where: whereClause,
+            order: [['timestamp', 'DESC']]
+        });
 
         res.json({
-            totalSales: parseFloat(salesResult[0].totalSales) || 0,
+            totalSales: totalSales || 0,
             orders: todaysOrders
         });
     } catch (error) {
@@ -397,19 +399,21 @@ app.get('/api/dashboard/data', verifyToken, checkRole(['admin', 'cashier']), asy
 app.get('/api/dashboard/product-report', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     const { date } = req.query;
     try {
-        const { clause: queryFilter, params: queryParams } = buildReportWhereClause(req.user, date, 'o');
-        const [report] = await pool.query(`
-            SELECT 
-                p.name, 
-                SUM(oi.quantity) as total_sold,
-                SUM(oi.quantity * oi.price_at_time) as total_revenue
-            FROM order_items oi
-            INNER JOIN products p ON oi.product_id = p.id
-            INNER JOIN orders o ON oi.order_id = o.id
-            ${queryFilter} 
-            GROUP BY p.id, p.name
-            ORDER BY total_sold DESC;
-        `, queryParams);
+        const whereClause = buildReportWhereClause(req.user, date).where;
+
+        const report = await db.OrderItem.findAll({
+            attributes: [
+                [db.sequelize.col('product.name'), 'name'], // Incluir el nombre del producto directamente
+                [db.sequelize.fn('SUM', db.sequelize.col('quantity')), 'total_sold'],
+                [db.sequelize.fn('SUM', db.sequelize.literal('quantity * price_at_time')), 'total_revenue']
+            ],
+            include: [
+                { model: db.Product, as: 'product', attributes: [] }, // Ya no necesitamos traer el objeto anidado
+                { model: db.Order, as: 'order', attributes: [], where: whereClause }
+            ],
+            group: ['product.id'],
+            order: [[db.sequelize.fn('SUM', db.sequelize.col('quantity')), 'DESC']]
+        });
         res.json(report);
     } catch (error) {
         console.error("Error al generar reporte de productos:", error);
@@ -421,17 +425,18 @@ app.get('/api/dashboard/product-report', verifyToken, checkRole(['admin', 'cashi
 app.get('/api/dashboard/payment-report', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     const { date } = req.query;
     try {
-        const { clause: queryFilter, params: queryParams } = buildReportWhereClause(req.user, date, 'o');
-        const [report] = await pool.query(`
-            SELECT 
-                payment_method,
-                COUNT(*) as transaction_count,
-                SUM(total) as total_revenue
-            FROM orders o
-            ${queryFilter} AND o.payment_method IS NOT NULL
-            GROUP BY o.payment_method
-            ORDER BY total_revenue DESC;
-        `, queryParams);
+        const whereClause = buildReportWhereClause(req.user, date).where;
+        whereClause.payment_method = { [Op.ne]: null };
+
+        const report = await db.Order.findAll({
+            attributes: ['payment_method',
+                [db.sequelize.fn('COUNT', db.sequelize.col('id')), 'transaction_count'],
+                [db.sequelize.fn('SUM', db.sequelize.col('total')), 'total_revenue']
+            ],
+            where: whereClause,
+            group: ['payment_method'],
+            order: [[db.sequelize.fn('SUM', db.sequelize.col('total')), 'DESC']]
+        });
         res.json(report);
     } catch (error) {
         console.error("Error al generar reporte de pagos:", error);
@@ -442,12 +447,12 @@ app.get('/api/dashboard/payment-report', verifyToken, checkRole(['admin', 'cashi
 // Get closure status for a given date
 app.get('/api/reports/status', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     const { date } = req.query;
-    const targetDate = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const targetDate = date || new Date().toISOString().split('T')[0];
 
     try {
-        const [rows] = await pool.query('SELECT status FROM daily_closures WHERE closure_date = ?', [targetDate]);
-        if (rows.length > 0) {
-            res.json({ status: rows[0].status });
+        const closure = await db.DailyClosure.findByPk(targetDate);
+        if (closure) {
+            res.json({ status: closure.status });
         } else {
             res.json({ status: 'open' }); // Default to open if no record exists
         }
@@ -463,15 +468,13 @@ app.post('/api/reports/propose-closure', verifyToken, checkRole(['cashier', 'adm
     const today = new Date().toISOString().split('T')[0];
 
     try {
-        // Using INSERT ... ON DUPLICATE KEY UPDATE to handle both creation and update
-        await pool.query(`
-            INSERT INTO daily_closures (closure_date, status, proposed_by_user_id, proposed_at)
-            VALUES (?, 'pending_closure', ?, NOW())
-            ON DUPLICATE KEY UPDATE
-                status = IF(status = 'open', 'pending_closure', status),
-                proposed_by_user_id = IF(status = 'open', ?, proposed_by_user_id),
-                proposed_at = IF(status = 'open', NOW(), proposed_at)
-        `, [today, userId, userId]);
+        const [closure, created] = await db.DailyClosure.findOrCreate({
+            where: { closure_date: today },
+            defaults: { status: 'pending_closure', proposed_by_user_id: userId, proposed_at: new Date() }
+        });
+        if (!created && closure.status === 'open') {
+            await closure.update({ status: 'pending_closure', proposed_by_user_id: userId, proposed_at: new Date() });
+        }
         res.status(200).json({ message: 'Propuesta de cierre enviada.' });
     } catch (error) {
         console.error("Error al proponer cierre:", error);
@@ -480,31 +483,19 @@ app.post('/api/reports/propose-closure', verifyToken, checkRole(['cashier', 'adm
 });
 
 async function getReportData(date) {
-    // If no date is provided (e.g., an empty string), default to today's date.
     const targetDateStr = date || new Date().toISOString().split('T')[0];
-    const queryParams = [targetDateStr];
+    const where = { timestamp: { [Op.between]: [`${targetDateStr} 00:00:00`, `${targetDateStr} 23:59:59`] } };
 
-    // 1. Get Total Sales
-    const [salesResult] = await pool.query(`SELECT SUM(total) as totalSales FROM orders WHERE DATE(timestamp) = ?`, queryParams);
-    // The SUM function in MySQL can return a string. We parse it to ensure it's a number.
-    const totalSales = parseFloat(salesResult[0].totalSales) || 0;
-
-    // 2. Get Product Report
-    const [productReport] = await pool.query(`
-        SELECT p.name, SUM(oi.quantity) as total_sold, SUM(oi.quantity * oi.price_at_time) as total_revenue
-        FROM order_items oi
-        INNER JOIN products p ON oi.product_id = p.id
-        INNER JOIN orders o ON oi.order_id = o.id
-        WHERE DATE(o.timestamp) = ?
-        GROUP BY p.id, p.name ORDER BY total_revenue DESC`, queryParams);
-
-    // 3. Get Payment Method Report
-    const [paymentReport] = await pool.query(`
-        SELECT payment_method, COUNT(*) as transaction_count, SUM(total) as total_revenue
-        FROM orders
-        WHERE DATE(timestamp) = ? AND payment_method IS NOT NULL
-        GROUP BY payment_method ORDER BY total_revenue DESC`, queryParams);
-
+    const totalSales = await db.Order.sum('total', { where }) || 0;
+    const productReport = await db.OrderItem.findAll({
+        attributes: [[db.sequelize.col('product.name'), 'name'], [db.sequelize.fn('SUM', db.sequelize.col('quantity')), 'total_sold'], [db.sequelize.fn('SUM', db.sequelize.literal('quantity * price_at_time')), 'total_revenue']],
+        include: [{ model: db.Product, as: 'product', attributes: [] }, { model: db.Order, as: 'order', attributes: [], where }],
+        group: ['product.id', 'product.name'], order: [[db.sequelize.fn('SUM', db.sequelize.col('quantity')), 'DESC']]
+    });
+    const paymentReport = await db.Order.findAll({
+        attributes: ['payment_method', [db.sequelize.fn('COUNT', db.sequelize.col('id')), 'transaction_count'], [db.sequelize.fn('SUM', db.sequelize.col('total')), 'total_revenue']],
+        where: { ...where, payment_method: { [Op.ne]: null } }, group: ['payment_method'], order: [[db.sequelize.fn('SUM', db.sequelize.col('total')), 'DESC']]
+    });
     return { totalSales, productReport, paymentReport, targetDateStr };
 }
 
@@ -620,18 +611,15 @@ app.post('/api/reports/approve-closure', verifyToken, checkRole(['admin']), asyn
     const { date } = req.body;
     const { id: adminId } = req.user;
 
-    const targetDateStr = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const targetDateStr = date || new Date().toISOString().split('T')[0];
 
     try {
-        // Update closure status to 'closed'
-        await pool.query(`
-            INSERT INTO daily_closures (closure_date, status, closed_by_user_id, closed_at)
-            VALUES (?, 'closed', ?, NOW())
-            ON DUPLICATE KEY UPDATE
-                status = 'closed',
-                closed_by_user_id = ?,
-                closed_at = NOW()
-        `, [targetDateStr, adminId, adminId]);
+        await db.DailyClosure.upsert({
+            closure_date: targetDateStr,
+            status: 'closed',
+            closed_by_user_id: adminId,
+            closed_at: new Date()
+        });
 
         const reportData = await getReportData(date);
         generatePdfReport(res, reportData, req.user);
@@ -661,7 +649,7 @@ app.post('/api/reports/regenerate', verifyToken, checkRole(['admin']), async (re
 app.post('/api/products', verifyToken, checkRole(['admin']), async (req, res) => {
     const { name, price, category_id, stock, stock_type } = req.body;
     try {
-        await pool.query('INSERT INTO products (name, price, category_id, stock, stock_type) VALUES (?, ?, ?, ?, ?)', [name, price, category_id, stock, stock_type]);
+        await db.Product.create({ name, price, category_id, stock, stock_type });
         res.status(201).json({ message: 'Producto creado exitosamente.'});
     } catch (error) {
         console.error('Error al crear producto:', error);
@@ -673,8 +661,8 @@ app.put('/api/products/:id', verifyToken, checkRole(['admin']), async (req, res)
     const { id } = req.params;
     const { name, price, category_id, stock, stock_type } = req.body;
     try {
-        const [result] = await pool.query('UPDATE products SET name = ?, price = ?, category_id = ?, stock = ?, stock_type = ? WHERE id = ?', [name, price, category_id, stock, stock_type, id]);
-        if (result.affectedRows === 0) {
+        const [affectedRows] = await db.Product.update({ name, price, category_id, stock, stock_type }, { where: { id } });
+        if (affectedRows === 0) {
             return res.status(404).json({ message: 'Producto no encontrado.' });
         }
         res.status(200).json({ message: 'Producto actualizado exitosamente.' });
@@ -687,8 +675,8 @@ app.put('/api/products/:id', verifyToken, checkRole(['admin']), async (req, res)
 app.delete('/api/products/:id', verifyToken, checkRole(['admin']), async (req, res) => {
     const { id } = req.params;
     try {
-        const [result] = await pool.query('DELETE FROM products WHERE id = ?', [id]);
-        if (result.affectedRows === 0) {
+        const affectedRows = await db.Product.destroy({ where: { id } });
+        if (affectedRows === 0) {
             return res.status(404).json({ message: 'Producto no encontrado.' });
         }
         res.status(200).json({ message: 'Producto eliminado exitosamente.' });
@@ -701,7 +689,7 @@ app.delete('/api/products/:id', verifyToken, checkRole(['admin']), async (req, r
 // --- Admin Management: Recipes ---
 app.get('/api/products/compound', verifyToken, checkRole(['admin']), async (req, res) => {
     try {
-        const [products] = await pool.query("SELECT id, name FROM products WHERE stock_type = 'COMPOUND' ORDER BY name ASC");
+        const products = await db.Product.findAll({ where: { stock_type: 'COMPOUND' }, order: [['name', 'ASC']] });
         res.json(products);
     } catch (error) {
         console.error("Error al leer productos compuestos:", error);
@@ -712,13 +700,10 @@ app.get('/api/products/compound', verifyToken, checkRole(['admin']), async (req,
 app.get('/api/recipes/:productId', verifyToken, checkRole(['admin']), async (req, res) => {
     const { productId } = req.params;
     try {
-        const [recipe] = await pool.query(
-            `SELECT i.id as ingredient_id, i.name, pi.quantity_required 
-             FROM product_ingredients pi 
-             JOIN ingredients i ON pi.ingredient_id = i.id 
-             WHERE pi.product_id = ?`,
-            [productId]
-        );
+        const recipe = await db.ProductIngredient.findAll({
+            where: { product_id: productId },
+            include: [{ model: db.Ingredient, as: 'ingredient', attributes: ['id', 'name'] }]
+        });
         res.json(recipe);
     } catch (error) {
         console.error("Error al leer la receta:", error);
@@ -729,32 +714,28 @@ app.get('/api/recipes/:productId', verifyToken, checkRole(['admin']), async (req
 app.put('/api/recipes/:productId', verifyToken, checkRole(['admin']), async (req, res) => {
     const { productId } = req.params;
     const { ingredients } = req.body; // ingredients es un array de { ingredient_id, quantity_required }
-    const connection = await pool.getConnection();
+    const t = await db.sequelize.transaction();
     try {
-        await connection.beginTransaction();
-        // Borrar la receta anterior
-        await connection.query('DELETE FROM product_ingredients WHERE product_id = ?', [productId]);
-        // Insertar la nueva receta si hay ingredientes
+        await db.ProductIngredient.destroy({ where: { product_id: productId }, transaction: t });
         if (ingredients && ingredients.length > 0) {
-            const values = ingredients.map(ing => [productId, ing.ingredient_id, ing.quantity_required]);
-            await connection.query('INSERT INTO product_ingredients (product_id, ingredient_id, quantity_required) VALUES ?', [values]);
+            const recipeData = ingredients.map(ing => ({ ...ing, product_id: productId }));
+            await db.ProductIngredient.bulkCreate(recipeData, { transaction: t });
         }
-        await connection.commit();
+        await t.commit();
         res.json({ message: 'Receta actualizada exitosamente.' });
     } catch (error) {
-        await connection.rollback();
+        await t.rollback();
         console.error("Error al actualizar la receta:", error);
         res.status(500).send('Error interno del servidor');
-    } finally {
-        connection.release();
     }
 });
 
 app.get('/api/dashboard/ingredient-stock-report', verifyToken, checkRole(['admin']), async (req, res) => {
     try {
-        const [ingredients] = await pool.query(`
-            SELECT name, stock FROM ingredients ORDER BY name ASC
-        `);
+        const ingredients = await db.Ingredient.findAll({
+            attributes: ['name', 'stock'],
+            order: [['name', 'ASC']]
+        });
         res.json(ingredients);
     } catch (error) {
         console.error("Error al leer el reporte de stock de insumos:", error);
@@ -766,17 +747,15 @@ app.get('/api/dashboard/ingredient-stock-report', verifyToken, checkRole(['admin
 app.post('/api/auth/login', async (req, res) => {
     const { username, password } = req.body;
     try {
-        const [users] = await pool.query(
-            `SELECT u.id, u.username, u.password_hash, r.name as role 
-             FROM users u JOIN roles r ON u.role_id = r.id WHERE u.username = ?`,
-            [username]
-        );
+        const user = await db.User.findOne({
+            where: { username },
+            include: [{ model: db.Role, as: 'role' }]
+        });
 
-        if (users.length === 0) {
+        if (!user) {
             return res.status(401).json({ message: 'Usuario o contraseña incorrectos' });
         }
 
-        const user = users[0];
         const isMatch = await bcrypt.compare(password, user.password_hash);
 
         if (!isMatch) {
@@ -784,16 +763,80 @@ app.post('/api/auth/login', async (req, res) => {
         }
 
         const token = jwt.sign(
-            { id: user.id, username: user.username, role: user.role },
+            { id: user.id, username: user.username, role: user.role.name },
             process.env.JWT_SECRET,
             { expiresIn: '8h' }
         );
 
-        res.json({ message: 'Login exitoso', token, role: user.role });
+        res.json({ message: 'Login exitoso', token, role: user.role.name });
 
     } catch (error) {
         console.error("Error en el login:", error);
         res.status(500).json({ message: 'Error interno del servidor' });
+    }
+});
+
+// --- User Profile Management ---
+app.get('/api/profile', verifyToken, async (req, res) => {
+    try {
+        if (!req.user || !req.user.id) {
+            return res.status(401).json({ message: 'Token inválido o no proporcionado.' });
+        }
+        const user = await db.User.findByPk(req.user.id, {
+            attributes: ['id', 'username', 'full_name', 'phone_number']
+        });
+        if (!user) {
+            return res.status(404).json({ message: 'Usuario no encontrado.' });
+        }
+        res.json(user);
+    } catch (error) {
+        console.error("Error al obtener el perfil:", error);
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+app.put('/api/profile', verifyToken, async (req, res) => {
+    const { full_name, phone_number } = req.body;
+    try {
+        const [affectedRows] = await db.User.update(
+            { full_name, phone_number },
+            { where: { id: req.user.id } }
+        );
+        if (affectedRows === 0) {
+            return res.status(404).json({ message: 'Usuario no encontrado.' });
+        }
+        res.json({ message: 'Perfil actualizado exitosamente.' });
+    } catch (error) {
+        console.error("Error al actualizar el perfil:", error);
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+app.put('/api/profile/change-password', verifyToken, async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: 'Todos los campos son requeridos.' });
+    }
+
+    try {
+        const user = await db.User.findByPk(req.user.id);
+        if (!user) {
+            return res.status(404).json({ message: 'Usuario no encontrado.' });
+        }
+
+        const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+        if (!isMatch) {
+            return res.status(400).json({ message: 'La contraseña actual es incorrecta.' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const newPasswordHash = await bcrypt.hash(newPassword, salt);
+        await user.update({ password_hash: newPasswordHash });
+
+        res.json({ message: 'Contraseña actualizada exitosamente.' });
+    } catch (error) {
+        console.error("Error al cambiar la contraseña:", error);
+        res.status(500).send('Error interno del servidor');
     }
 });
 
@@ -823,6 +866,14 @@ app.get('/manage-ingredients.html', (req, res) => {
 
 app.get('/manage-recipes.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'manage-recipes.html'));
+});
+
+app.get('/manage-sauces.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'manage-sauces.html'));
+});
+
+app.get('/profile.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'profile.html'));
 });
 
 app.get('/login.html', (req, res) => {
@@ -887,8 +938,8 @@ io.on('connection', (socket) => {
 
     socket.on('mark_order_ready', async (orderId) => {
         try {
-            // Ahora la acción está autenticada y sabemos quién la realizó (socket.user)
-            await pool.query('UPDATE orders SET status = ? WHERE id = ?', ['completed', orderId]);
+            // La acción está autenticada por el middleware del socket
+            await db.Order.update({ status: 'completed' }, { where: { id: orderId } });
             io.emit('remove_order', orderId); // Notificar a todos los clientes para que eliminen la tarjeta
         } catch (error) {
             console.error(`Error al marcar la orden ${orderId} como lista:`, error);
@@ -901,7 +952,12 @@ io.on('connection', (socket) => {
     });
 });
 
-server.listen(PORT, () => {
-    console.log(`Servidor corriendo en http://localhost:${PORT}`);
-    console.log(`Login: http://localhost:${PORT}/login.html`);
-});
+db.sequelize.sync()
+    .then(() => {
+        server.listen(PORT, () => {
+            console.log(`Servidor corriendo en http://localhost:${PORT}`);
+            console.log(`Login: http://localhost:${PORT}/login.html`);
+        });
+    }).catch(err => {
+        console.error('No se pudo conectar a la base de datos:', err);
+    });

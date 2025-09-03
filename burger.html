@@ -569,8 +569,8 @@
             const selectorDiv = document.getElementById(`sauce-selector-${cartItemId}`);
             if (!selectorDiv) return;
 
-            // Si ya está visible, lo ocultamos
-            if (selectorDiv.innerHTML) {
+            // Si ya tiene contenido (está visible), lo ocultamos
+            if (selectorDiv.hasChildNodes()) {
                 selectorDiv.innerHTML = '';
                 selectorDiv.classList.add('hidden');
                 return;
@@ -594,8 +594,8 @@
                     <div class="grid grid-cols-2 gap-2 border-t pt-2">
                         ${allSauces.map(sauce => `
                             <label class="flex items-center text-sm">
-                                <input type="checkbox" value="${sauce}" class="form-checkbox h-4 w-4 rounded individual-sauce-${cartItemId}" onchange="updateItemSauces(${cartItemId}, this)" ${cartItem.sauces.includes(sauce) ? 'checked' : ''}>
-                                <span class="ml-2">${sauce}</span>
+                                <input type="checkbox" value="${sauce.name}" class="form-checkbox h-4 w-4 rounded individual-sauce-${cartItemId}" onchange="updateItemSauces(${cartItemId}, this)" ${cartItem.sauces.includes(sauce.name) ? 'checked' : ''}>
+                                <span class="ml-2">${sauce.name}</span>
                             </label>
                         `).join('')}
                     </div>
@@ -645,7 +645,7 @@
             
             if (isChecked) {
                 const allSauceValues = Array.from(sauceCheckboxes).map(cb => cb.value);
-                cartItem.sauces = [...new Set([...cartItem.sauces, ...allSauceValues])]; // Add all, avoid duplicates
+                cartItem.sauces = [...new Set(allSauceValues)]; // Seleccionar todas
             } else {
                 cartItem.sauces = [];
             }
@@ -661,7 +661,7 @@
                 selectorDiv.innerHTML = '';
                 selectorDiv.classList.add('hidden');
             }
-            renderCart(); // Ahora sí, re-renderizamos para mostrar los cambios
+            renderCart(); // Re-renderizar el carrito para mostrar las cremas seleccionadas
         }
     </script>
 </body>

@@ -31,18 +31,27 @@
                 opacity: 0;
             }
         }
+        .loading-overlay {
+            transition: opacity 0.3s ease-in-out;
+        }
     </style>
 </head>
 <body class="bg-gray-100 p-8">
     <!-- Contenedor para notificaciones Toast -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2"></div>
-
     <div class="relative max-w-4xl mx-auto">
-        <button id="logout-button" class="absolute top-0 right-0 p-2 text-red-500 hover:text-red-700 transition-colors" title="Cerrar Sesión">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-        </button>
+        <div class="absolute top-0 right-0 flex items-center space-x-2">
+            <a href="/profile.html" class="p-2 text-gray-500 hover:text-blue-600 transition-colors" title="Mi Perfil">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+            </a>
+            <button id="logout-button" class="p-2 text-red-500 hover:text-red-700 transition-colors" title="Cerrar Sesión">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+            </button>
+        </div>
         <header class="text-center mb-8">
             <h1 class="text-4xl font-bold text-gray-800">Panel de Control</h1>
             <p class="text-gray-500" id="dashboard-subtitle">Ventas y reportes del día</p>
@@ -57,6 +66,7 @@
                     <a href="/manage-products.html" id="manage-products-link" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Gestionar Productos</a>
                     <a href="/manage-recipes.html" id="manage-recipes-link" class="hidden bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Gestionar Recetas</a>
                     <a href="/manage-ingredients.html" id="manage-ingredients-link" class="hidden bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Gestionar Insumos</a>
+                    <a href="/manage-sauces.html" id="manage-sauces-link" class="hidden bg-pink-600 hover:bg-pink-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Gestionar Cremas</a>
                     <!-- Cashier Buttons -->
                     <button id="propose-closure-btn" class="hidden bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-lg">Proponer Cierre de Día</button>
                 </div>
@@ -82,14 +92,14 @@
 
             <!-- Sección de Pedidos del Día -->
             <section class="bg-white p-6 rounded-2xl shadow-lg">
-                <h2 id="orders-list-title" class="text-2xl font-semibold text-gray-700 mb-4">Pedidos de Hoy</h2>
+                <h2 id="orders-list-title" class="text-2xl font-semibold text-gray-700 mb-4">Pedidos</h2>
                 <div id="orders-list" class="space-y-4 max-h-96 overflow-y-auto">
                     <!-- Lista de pedidos se cargará aquí -->
                 </div>
             </section>
 
             <!-- Sección de Reporte de Productos -->
-            <section class="bg-white p-6 rounded-2xl shadow-lg mt-8">
+            <section id="product-report-section" class="relative bg-white p-6 rounded-2xl shadow-lg mt-8">
                 <div class="flex justify-between items-center mb-4">
                     <h2 id="product-report-title" class="text-2xl font-semibold text-gray-700">Reporte de Productos Vendidos Hoy</h2>
                     <div id="report-action-buttons" class="flex gap-2 items-center h-10">
@@ -105,18 +115,24 @@
                 <div id="product-report-list" class="space-y-2">
                     <!-- El reporte de productos se cargará aquí -->
                 </div>
+                <div class="loading-overlay absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center hidden">
+                    <p class="text-gray-600 font-semibold">Cargando...</p>
+                </div>
             </section>
 
             <!-- Sección de Reporte por Método de Pago -->
-            <section class="bg-white p-6 rounded-2xl shadow-lg mt-8">
+            <section id="payment-report-section" class="relative bg-white p-6 rounded-2xl shadow-lg mt-8">
                 <h2 id="payment-report-title" class="text-2xl font-semibold text-gray-700 mb-4">Reporte por Método de Pago</h2>
                 <div id="payment-report-list" class="space-y-2">
                     <!-- El reporte de pagos se cargará aquí -->
                 </div>
+                <div class="loading-overlay absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center hidden">
+                    <p class="text-gray-600 font-semibold">Cargando...</p>
+                </div>
             </section>
             
             <!-- Sección de Reporte de Stock -->
-            <section class="bg-white p-6 rounded-2xl shadow-lg mt-8">
+            <section id="stock-report-section" class="relative bg-white p-6 rounded-2xl shadow-lg mt-8">
                 <h2 class="text-2xl font-semibold text-gray-700 mb-4">Reporte de Stock de Insumos</h2>
                 <div id="stock-report-list" class="space-y-2">
                     <!-- El reporte de productos se cargará aquí -->
@@ -139,6 +155,7 @@
         const manageProductsLink = document.getElementById('manage-products-link');
         const manageRecipesLink = document.getElementById('manage-recipes-link');
         const manageIngredientsLink = document.getElementById('manage-ingredients-link');
+        const manageSaucesLink = document.getElementById('manage-sauces-link');
         const approveBtn = document.getElementById('approve-closure-btn');
         const forceBtn = document.getElementById('force-closure-btn');
         const regenerateBtn = document.getElementById('regenerate-report-btn');
@@ -212,7 +229,7 @@
                 `;
 
                 // Mostrar tabla completa
-                let tableHtml = `
+                const tableHtml = `
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
@@ -222,20 +239,18 @@
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">`;
-                
-                reportData.forEach(item => {
-                    tableHtml += `
+                const tableRows = reportData.map(item => `
                         <tr>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.name}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.total_sold}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">S/. ${parseFloat(item.total_revenue).toFixed(2)}</td>
-                        </tr>`;
-                });
+                        </tr>`
+                ).join('');
 
                 const totalItemsSold = reportData.reduce((sum, item) => sum + parseInt(item.total_sold), 0);
                 const totalRevenue = reportData.reduce((sum, item) => sum + parseFloat(item.total_revenue), 0);
 
-                tableHtml += `
+                const tableFooter = `
                         </tbody>
                         <tfoot class="bg-gray-100">
                             <tr>
@@ -244,7 +259,7 @@
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">S/. ${totalRevenue.toFixed(2)}</td>
                             </tr>
                         </tfoot></table>`;
-                reportContainer.innerHTML = tableHtml;
+                reportContainer.innerHTML = tableHtml + tableRows + tableFooter;
             } catch (error) {
                 console.error('Error al cargar el reporte de productos:', error);
                 document.getElementById('product-report-list').innerHTML = '<p class="text-red-500">No se pudo cargar el reporte.</p>';
@@ -267,7 +282,7 @@
                     return;
                 }
 
-                let tableHtml = `
+                const tableHtml = `
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
@@ -277,20 +292,18 @@
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">`;
-                
-                reportData.forEach(item => {
-                    tableHtml += `
+                const tableRows = reportData.map(item => `
                         <tr>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.payment_method}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.transaction_count}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">S/. ${parseFloat(item.total_revenue).toFixed(2)}</td>
-                        </tr>`;
-                });
+                        </tr>`
+                ).join('');
 
                 const totalTransactions = reportData.reduce((sum, item) => sum + parseInt(item.transaction_count), 0);
                 const totalRevenue = reportData.reduce((sum, item) => sum + parseFloat(item.total_revenue), 0);
 
-                tableHtml += `
+                const tableFooter = `
                         </tbody>
                         <tfoot class="bg-gray-100">
                             <tr>
@@ -299,7 +312,7 @@
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">S/. ${totalRevenue.toFixed(2)}</td>
                             </tr>
                         </tfoot></table>`;
-                reportContainer.innerHTML = tableHtml;
+                reportContainer.innerHTML = tableHtml + tableRows + tableFooter;
             } catch (error) {
                 console.error('Error al cargar el reporte de pagos:', error);
                 document.getElementById('payment-report-list').innerHTML = '<p class="text-red-500">No se pudo cargar el reporte de pagos.</p>';
@@ -320,7 +333,7 @@
                     return;
                 }
 
-                let tableHtml = `
+                const tableHtml = `
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
@@ -329,17 +342,14 @@
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">`;
-                
-                reportData.forEach(item => {
-                    tableHtml += `
+                const tableRows = reportData.map(item => `
                         <tr>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.name}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.stock}</td>
-                        </tr>`;
-                });
+                        </tr>`
+                ).join('');
 
-                tableHtml += `</tbody></table>`;
-                reportContainer.innerHTML = tableHtml;
+                reportContainer.innerHTML = tableHtml + tableRows + `</tbody></table>`;
             } catch (error) {
                 console.error('Error al cargar el reporte de stock:', error);
                 document.getElementById('stock-report-list').innerHTML = '<p class="text-red-500">No se pudo cargar el reporte de stock.</p>';
@@ -357,6 +367,8 @@
 
         async function updateAllData() {
             const selectedDate = datePicker.value;
+            const loadingOverlays = document.querySelectorAll('.loading-overlay');
+            loadingOverlays.forEach(overlay => overlay.classList.remove('hidden'));
             
             // Run data loading in parallel
             await Promise.all([
@@ -367,6 +379,8 @@
                 updateDashboardActions(selectedDate)
             ]);
             
+            loadingOverlays.forEach(overlay => overlay.classList.add('hidden'));
+
             const productReportTitle = document.getElementById('product-report-title');
             const paymentReportTitle = document.getElementById('payment-report-title');
             const ordersListTitle = document.getElementById('orders-list-title');
@@ -386,7 +400,7 @@
 
         async function updateDashboardActions(date) {
             // Hide all buttons and statuses first
-            [manageProductsLink, manageRecipesLink, manageIngredientsLink, approveBtn, forceBtn, regenerateBtn, proposeBtn, statusPending, statusClosed].forEach(el => el.classList.add('hidden'));
+            [manageProductsLink, manageRecipesLink, manageIngredientsLink, manageSaucesLink, approveBtn, forceBtn, regenerateBtn, proposeBtn, statusPending, statusClosed].forEach(el => el.classList.add('hidden'));
 
             const today = new Date().toISOString().split('T')[0];
             const selectedDate = date || today;
@@ -403,6 +417,7 @@
                     manageProductsLink.classList.remove('hidden');
                     manageRecipesLink.classList.remove('hidden');
                     manageIngredientsLink.classList.remove('hidden');
+                    manageSaucesLink.classList.remove('hidden');
                     if (status === 'pending_closure') {
                         approveBtn.classList.remove('hidden');
                     } else if (status === 'open') {
