@@ -1,0 +1,13 @@
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS order_items;
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS categories;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS roles;
+DROP TABLE IF EXISTS sauces;
+DROP TABLE IF EXISTS payment_methods;
+DROP TABLE IF EXISTS daily_closures;
+DROP TABLE IF EXISTS product_ingredients;
+DROP TABLE IF EXISTS ingredients;
+SET FOREIGN_key_checks = 1;

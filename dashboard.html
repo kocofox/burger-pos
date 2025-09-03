@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Cangre Burger</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+        }
+        .toast {
+            animation: slideInUp 0.5s ease-out, fadeOut 0.5s ease-in 2.5s forwards;
+        }
+        @keyframes slideInUp {
+            from {
+                transform: translateY(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+            to {
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <!-- Contenedor para notificaciones Toast -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2"></div>
+
+    <div class="relative max-w-4xl mx-auto">
+        <button id="logout-button" class="absolute top-0 right-0 p-2 text-red-500 hover:text-red-700 transition-colors" title="Cerrar Sesión">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+        </button>
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800">Panel de Control</h1>
+            <p class="text-gray-500" id="dashboard-subtitle">Ventas y reportes del día</p>
+            <div class="mt-6 flex flex-col sm:flex-row justify-center items-center gap-4 ">
+                <div>
+                    <label for="date-picker" class="text-sm font-medium text-gray-700">Ver historial por fecha:</label>
+                    <input type="date" id="date-picker" class="p-2 border border-gray-300 rounded-lg">
+                    <button id="view-today-btn" class="ml-2 px-4 py-2 bg-gray-200 text-sm font-medium text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">Ver Hoy</button>
+                </div>
+                <div id="action-buttons" class="flex gap-2 items-center h-10">
+                    <!-- Admin Buttons -->
+                    <a href="/manage-products.html" id="manage-products-link" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Gestionar Productos</a>
+                    <a href="/manage-recipes.html" id="manage-recipes-link" class="hidden bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Gestionar Recetas</a>
+                    <a href="/manage-ingredients.html" id="manage-ingredients-link" class="hidden bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Gestionar Insumos</a>
+                    <!-- Cashier Buttons -->
+                    <button id="propose-closure-btn" class="hidden bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-lg">Proponer Cierre de Día</button>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <!-- Resumen General -->
+            <section class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h2 class="text-2xl font-semibold text-gray-700 mb-4">Ingresos Totales</h2>
+                    <div class="text-5xl font-bold text-amber-600" id="total-sales">
+                        Cargando...
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h2 class="text-2xl font-semibold text-gray-700 mb-4">Producto Más Vendido</h2>
+                    <div id="best-seller-product" class="text-gray-600">
+                        Cargando...
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sección de Pedidos del Día -->
+            <section class="bg-white p-6 rounded-2xl shadow-lg">
+                <h2 id="orders-list-title" class="text-2xl font-semibold text-gray-700 mb-4">Pedidos de Hoy</h2>
+                <div id="orders-list" class="space-y-4 max-h-96 overflow-y-auto">
+                    <!-- Lista de pedidos se cargará aquí -->
+                </div>
+            </section>
+
+            <!-- Sección de Reporte de Productos -->
+            <section class="bg-white p-6 rounded-2xl shadow-lg mt-8">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 id="product-report-title" class="text-2xl font-semibold text-gray-700">Reporte de Productos Vendidos Hoy</h2>
+                    <div id="report-action-buttons" class="flex gap-2 items-center h-10">
+                        <!-- Admin Closure Buttons -->
+                        <button id="approve-closure-btn" class="hidden bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Aprobar Cierre y Reporte</button>
+                        <button id="force-closure-btn" class="hidden bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Forzar Cierre y Reporte</button>
+                        <button id="regenerate-report-btn" class="hidden bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Regenerar Reporte</button>
+                        <!-- Status Texts -->
+                        <p id="status-pending" class="hidden text-sm font-semibold text-yellow-600">Cierre pendiente de aprobación.</p>
+                        <p id="status-closed" class="hidden text-sm font-semibold text-green-600">Día cerrado.</p>
+                    </div>
+                </div>
+                <div id="product-report-list" class="space-y-2">
+                    <!-- El reporte de productos se cargará aquí -->
+                </div>
+            </section>
+
+            <!-- Sección de Reporte por Método de Pago -->
+            <section class="bg-white p-6 rounded-2xl shadow-lg mt-8">
+                <h2 id="payment-report-title" class="text-2xl font-semibold text-gray-700 mb-4">Reporte por Método de Pago</h2>
+                <div id="payment-report-list" class="space-y-2">
+                    <!-- El reporte de pagos se cargará aquí -->
+                </div>
+            </section>
+            
+            <!-- Sección de Reporte de Stock -->
+            <section class="bg-white p-6 rounded-2xl shadow-lg mt-8">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Reporte de Stock de Insumos</h2>
+                <div id="stock-report-list" class="space-y-2">
+                    <!-- El reporte de productos se cargará aquí -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const datePicker = document.getElementById('date-picker');
+        const viewTodayBtn = document.getElementById('view-today-btn');
+        // Token is declared once and checked immediately.
+        const token = localStorage.getItem('cangre_burger_token');
+        if (!token) {
+            window.location.href = '/login.html';
+        }
+        let userRole = '';
+
+        // Button and status elements
+        const manageProductsLink = document.getElementById('manage-products-link');
+        const manageRecipesLink = document.getElementById('manage-recipes-link');
+        const manageIngredientsLink = document.getElementById('manage-ingredients-link');
+        const approveBtn = document.getElementById('approve-closure-btn');
+        const forceBtn = document.getElementById('force-closure-btn');
+        const regenerateBtn = document.getElementById('regenerate-report-btn');
+        const proposeBtn = document.getElementById('propose-closure-btn');
+        const statusPending = document.getElementById('status-pending');
+        const statusClosed = document.getElementById('status-closed');
+
+
+        async function loadDashboardData(date = '') {
+            const url = date ? `/api/dashboard/data?date=${date}` : '/api/dashboard/data';
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.status === 403 || response.status === 401) {
+                    window.location.href = '/login.html';
+                    return;
+                }
+
+                const data = await response.json();
+
+                // Actualizar total de ventas
+                document.getElementById('total-sales').innerText = `S/. ${data.totalSales.toFixed(2)}`;
+
+                // Mostrar lista de pedidos
+                const ordersList = document.getElementById('orders-list');
+                ordersList.innerHTML = '';
+                if (data.orders.length === 0) {
+                    ordersList.innerHTML = '<p class="text-gray-500">No hay pedidos para esta fecha.</p>';
+                } else {
+                    data.orders.forEach(order => {
+                        const orderElement = `<div class="p-3 bg-gray-50 rounded-lg"><p class="font-semibold">${order.customer_name}</p><p class="text-sm text-gray-600">Total: S/. ${parseFloat(order.total).toFixed(2)} | ${order.payment_method || 'N/A'} | Estado: ${order.status}</p></div>`;
+                        ordersList.insertAdjacentHTML('beforeend', orderElement);
+                    });
+                }
+            } catch (error) {
+                console.error('Error al cargar datos del dashboard:', error);
+                document.getElementById('total-sales').innerText = 'Error';
+                document.getElementById('orders-list').innerHTML = '<p class="text-red-500">Error al cargar pedidos.</p>';
+            }
+        }
+
+        async function loadProductReport(date = '') {
+            const url = date ? `/api/dashboard/product-report?date=${date}` : '/api/dashboard/product-report';
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const reportData = await response.json();
+                const reportContainer = document.getElementById('product-report-list');
+                const bestSellerContainer = document.getElementById('best-seller-product');
+                reportContainer.innerHTML = '';
+                bestSellerContainer.innerHTML = '';
+
+                if (reportData.length === 0) {
+                    reportContainer.innerHTML = '<p class="text-gray-500">No se han vendido productos en esta fecha.</p>';
+                    bestSellerContainer.innerHTML = '<p class="text-gray-500">Sin ventas.</p>';
+                    return;
+                }
+
+                // Mostrar producto más vendido
+                const bestSeller = reportData[0];
+                bestSellerContainer.innerHTML = `
+                    <p class="text-3xl font-bold text-gray-800">${bestSeller.name}</p>
+                    <p class="text-lg text-gray-500">${bestSeller.total_sold} unidades vendidas</p>
+                `;
+
+                // Mostrar tabla completa
+                let tableHtml = `
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ingresos</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">`;
+                
+                reportData.forEach(item => {
+                    tableHtml += `
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.name}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.total_sold}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">S/. ${parseFloat(item.total_revenue).toFixed(2)}</td>
+                        </tr>`;
+                });
+
+                const totalItemsSold = reportData.reduce((sum, item) => sum + parseInt(item.total_sold), 0);
+                const totalRevenue = reportData.reduce((sum, item) => sum + parseFloat(item.total_revenue), 0);
+
+                tableHtml += `
+                        </tbody>
+                        <tfoot class="bg-gray-100">
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">TOTALES</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">${totalItemsSold}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">S/. ${totalRevenue.toFixed(2)}</td>
+                            </tr>
+                        </tfoot></table>`;
+                reportContainer.innerHTML = tableHtml;
+            } catch (error) {
+                console.error('Error al cargar el reporte de productos:', error);
+                document.getElementById('product-report-list').innerHTML = '<p class="text-red-500">No se pudo cargar el reporte.</p>';
+                document.getElementById('best-seller-product').innerHTML = '<p class="text-red-500">Error.</p>';
+            }
+        }
+
+        async function loadPaymentReport(date = '') {
+            const url = date ? `/api/dashboard/payment-report?date=${date}` : '/api/dashboard/payment-report';
+            try {
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const reportData = await response.json();
+                const reportContainer = document.getElementById('payment-report-list');
+                reportContainer.innerHTML = '';
+
+                if (reportData.length === 0) {
+                    reportContainer.innerHTML = '<p class="text-gray-500">No hay transacciones registradas para esta fecha.</p>';
+                    return;
+                }
+
+                let tableHtml = `
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Método de Pago</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nº Transacciones</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ingresos</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">`;
+                
+                reportData.forEach(item => {
+                    tableHtml += `
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.payment_method}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.transaction_count}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">S/. ${parseFloat(item.total_revenue).toFixed(2)}</td>
+                        </tr>`;
+                });
+
+                const totalTransactions = reportData.reduce((sum, item) => sum + parseInt(item.transaction_count), 0);
+                const totalRevenue = reportData.reduce((sum, item) => sum + parseFloat(item.total_revenue), 0);
+
+                tableHtml += `
+                        </tbody>
+                        <tfoot class="bg-gray-100">
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">TOTALES</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">${totalTransactions}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">S/. ${totalRevenue.toFixed(2)}</td>
+                            </tr>
+                        </tfoot></table>`;
+                reportContainer.innerHTML = tableHtml;
+            } catch (error) {
+                console.error('Error al cargar el reporte de pagos:', error);
+                document.getElementById('payment-report-list').innerHTML = '<p class="text-red-500">No se pudo cargar el reporte de pagos.</p>';
+            }
+        }
+
+                async function loadStockReport() {
+            try { // Cambiado para apuntar al nuevo endpoint de insumos
+                const response = await fetch('/api/dashboard/ingredient-stock-report', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const reportData = await response.json();
+                const reportContainer = document.getElementById('stock-report-list');
+                reportContainer.innerHTML = '';
+
+                if (reportData.length === 0) {
+                    reportContainer.innerHTML = '<p class="text-gray-500">No hay insumos registrados.</p>';
+                    return;
+                }
+
+                let tableHtml = `
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Insumo</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">`;
+                
+                reportData.forEach(item => {
+                    tableHtml += `
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.name}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.stock}</td>
+                        </tr>`;
+                });
+
+                tableHtml += `</tbody></table>`;
+                reportContainer.innerHTML = tableHtml;
+            } catch (error) {
+                console.error('Error al cargar el reporte de stock:', error);
+                document.getElementById('stock-report-list').innerHTML = '<p class="text-red-500">No se pudo cargar el reporte de stock.</p>';
+            }
+        }
+        function checkAdminRole() {
+            if (!token) return;
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                userRole = payload.role;
+            } catch (e) {
+                console.error('Error al decodificar token:', e);
+            }
+        }
+
+        async function updateAllData() {
+            const selectedDate = datePicker.value;
+            
+            // Run data loading in parallel
+            await Promise.all([
+                loadDashboardData(selectedDate),
+                loadProductReport(selectedDate),
+                loadPaymentReport(selectedDate),
+                loadStockReport(selectedDate),
+                updateDashboardActions(selectedDate)
+            ]);
+            
+            const productReportTitle = document.getElementById('product-report-title');
+            const paymentReportTitle = document.getElementById('payment-report-title');
+            const ordersListTitle = document.getElementById('orders-list-title');
+            const subtitle = document.getElementById('dashboard-subtitle');
+            if (selectedDate) {
+                subtitle.innerText = `Mostrando datos para: ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-PE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`;
+                ordersListTitle.innerText = 'Pedidos de la Fecha Seleccionada';
+                productReportTitle.innerText = 'Reporte de Productos de la Fecha Seleccionada';
+                paymentReportTitle.innerText = 'Reporte por Método de Pago de la Fecha Seleccionada';
+            } else {
+                subtitle.innerText = 'Ventas y reportes del día de hoy';
+                ordersListTitle.innerText = 'Pedidos de Hoy';
+                productReportTitle.innerText = 'Reporte de Productos Vendidos Hoy';
+                paymentReportTitle.innerText = 'Reporte por Método de Pago de Hoy';
+            }
+        }
+
+        async function updateDashboardActions(date) {
+            // Hide all buttons and statuses first
+            [manageProductsLink, manageRecipesLink, manageIngredientsLink, approveBtn, forceBtn, regenerateBtn, proposeBtn, statusPending, statusClosed].forEach(el => el.classList.add('hidden'));
+
+            const today = new Date().toISOString().split('T')[0];
+            const selectedDate = date || today;
+
+            try {
+                const response = await fetch(`/api/reports/status?date=${selectedDate}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('No se pudo obtener el estado del cierre.');
+                
+                const { status } = await response.json();
+
+                if (userRole === 'admin') {
+                    manageProductsLink.classList.remove('hidden');
+                    manageRecipesLink.classList.remove('hidden');
+                    manageIngredientsLink.classList.remove('hidden');
+                    if (status === 'pending_closure') {
+                        approveBtn.classList.remove('hidden');
+                    } else if (status === 'open') {
+                        forceBtn.classList.remove('hidden');
+                    } else { // closed
+                        regenerateBtn.classList.remove('hidden');
+                    }
+                } else if (userRole === 'cashier') {
+                    if (selectedDate === today && status === 'open') {
+                        proposeBtn.classList.remove('hidden');
+                    } else if (status === 'pending_closure') {
+                        statusPending.classList.remove('hidden');
+                    } else if (status === 'closed') {
+                        statusClosed.classList.remove('hidden');
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating dashboard actions:', error);
+                showToast('No se pudieron cargar las acciones del dashboard.', 'error');
+            }
+        }
+
+        async function proposeClosure() {
+            if (!confirm('¿Está seguro que desea proponer el cierre del día? Esta acción no se puede deshacer.')) return;
+            try {
+                const response = await fetch('/api/reports/propose-closure', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || 'No se pudo proponer el cierre.');
+                }
+                showToast('Propuesta de cierre enviada al administrador.');
+                updateAllData(); // Refresh dashboard
+            } catch (error) {
+                console.error('Error al proponer cierre:', error);
+                showToast(error.message, 'error');
+            }
+        }
+
+        async function generateReport() {
+            const selectedDate = datePicker.value;
+
+            try {
+                const response = await fetch('/api/reports/approve-closure', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ date: selectedDate })
+                });
+
+                if (!response.ok) throw new Error('Error al generar el PDF.');
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = response.headers.get('Content-Disposition').split('filename=')[1].replace(/"/g, '');
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                
+                updateAllData(); // Refresh status to "closed"
+
+            } catch (error) {
+                console.error('Error en la descarga del reporte:', error);
+                showToast('No se pudo generar el reporte.', 'error');
+            }
+        }
+
+        async function regenerateReport() {
+            const selectedDate = datePicker.value;
+            try {
+                const response = await fetch('/api/reports/regenerate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ date: selectedDate })
+                });
+
+                if (!response.ok) throw new Error('Error al regenerar el PDF.');
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = response.headers.get('Content-Disposition').split('filename=')[1].replace(/"/g, '');
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+
+            } catch (error) {
+                console.error('Error en la descarga del reporte regenerado:', error);
+                showToast('No se pudo regenerar el reporte.', 'error');
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toastContainer = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgColor = type === 'error' ? 'bg-red-600' : 'bg-gray-800';
+            toast.className = `toast ${bgColor} text-white text-sm font-semibold py-2 px-4 rounded-lg shadow-lg`;
+            toast.textContent = message;
+            
+            toastContainer.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Por defecto, el dashboard ya carga los datos del día porque el date picker está vacío.
+            // Esta es la lógica correcta y cumple con el requisito.
+
+            checkAdminRole();
+            datePicker.addEventListener('change', updateAllData);
+
+            document.getElementById('logout-button').addEventListener('click', () => {
+                localStorage.removeItem('cangre_burger_token');
+                window.location.href = '/login.html';
+            });
+            
+            proposeBtn.addEventListener('click', proposeClosure);
+            approveBtn.addEventListener('click', generateReport);
+            forceBtn.addEventListener('click', generateReport);
+            regenerateBtn.addEventListener('click', regenerateReport);
+            viewTodayBtn.addEventListener('click', () => {
+                datePicker.value = ''; // Limpiar el selector de fecha dispara el comportamiento por defecto
+                updateAllData();
+            });
+
+            loadStockReport();
+            updateAllData(); // Carga inicial para el día de hoy
+        });
+    </script>
+</body>
+</html>

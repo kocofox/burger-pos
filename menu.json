@@ -1,0 +1,61 @@
+{
+    "burgers": [
+        { "name": "Clásica", "price": 10.00 },
+        { "name": "cheeseburger", "price": 11.00 },
+        { "name": "Queso + Tocino", "price": 13.00 },
+        { "name": "Royal", "price": 15.00 },
+        { "name": "Lomo Saltado", "price": 15.00 },
+        { "name": "Hawaiana", "price": 15.00 }
+    ],
+    "hotdogs": [
+        { "name": "Chorizo", "price": 10.00 },
+        { "name": "Frankfurter", "price": 10.00 },
+        { "name": "Frankfurter Queso + Tocino", "price": 14.00 },
+        { "name": "Frankfurter Hawaiana", "price": 15.00 }
+    ],
+    "salchipapas": [
+        { "name": "Salchi Clásica", "price": 8.00 },
+        { "name": "Salchi Frankfurter", "price": 10.00 },
+        { "name": "Salchi Chorizo", "price": 8.00 },
+        { "name": "Chicken Nugget", "price": 10.00 },
+        { "name": "Salchi Salvaje", "price": 14.00 },
+        { "name": "Salchipollo", "price": 10.00 }
+    ],
+    "combos": [
+        { "name": "Combo con Papas y Gaseosa", "price": 5.00 }
+    ],
+    "extras": [
+        { "name": "Papas", "price": 5.00 },
+        { "name": "Tocino", "price": 3.00 },
+        { "name": "Queso", "price": 2.00 },
+        { "name": "Runtu", "price": 2.00 },
+        { "name": "Chorizo", "price": 3.00 },
+        { "name": "Carne", "price": 4.00 }
+    ],
+    "drinks": [
+        { "name": "Inka Kola", "price": 3.50 },
+        { "name": "Coca Cola", "price": 3.50 },
+        { "name": "KR", "price": 1.50 },
+        { "name": "Coca Cola Lt", "price": 8.00 },
+        { "name": "Inka Kola Lt", "price": 8.00 },
+        { "name": "Pepsi Lt", "price": 8.00 },
+        { "name": "Fanta Lt", "price": 8.00 },
+        { "name": "Sprite Lt", "price": 8.00 },
+        { "name": "7up Lt", "price": 8.50 },
+        { "name": "Cusqueña T/N", "price": 6.00 }
+    ],
+    "candies": [
+        { "name": "galleta", "price": 1.00 },
+        { "name": "chicle adams", "price": 0.50 },
+        { "name": "mecano", "price": 0.50 },
+        { "name": "caramelo", "price": 0.50 },
+        { "name": "sublime", "price": 2.00 },
+        { "name": "Papas Lays", "price": 3.00 },
+        { "name": "doritos", "price": 1.50 },
+        { "name": "cheetos", "price": 1.50 },
+        { "name": "Takis", "price": 3.50 }
+    ],
+    "sauces": [
+        "Mayonesa", "Ketchup", "Mostaza", "Tartara", "Aceituna", "Rocoto", "Ají de la casa"
+    ]
+}

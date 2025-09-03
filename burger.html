@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comanda Cangre Burger</title>
+    <!-- Incluye el framework de CSS de Tailwind para un diseño rápido y responsive -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Incluye la fuente 'Inter' para una tipografía moderna y legible -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .toast {
+            animation: slideInUp 0.5s ease-out, fadeOut 0.5s ease-in 2.5s forwards;
+        }
+        @keyframes slideInUp {
+            from {
+                transform: translateY(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+            to {
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+    <script>
+        const token = localStorage.getItem('cangre_burger_token');
+        if (!token) {
+            window.location.href = '/login.html';
+        }
+    </script>
+
+    <!-- Contenedor para notificaciones Toast -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2"></div>
+
+    <!-- Contenedor principal de la comanda -->
+    <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 md:p-8 space-y-8">
+        <button id="logout-button" class="absolute top-6 right-6 p-2 text-red-500 hover:text-red-700 transition-colors" title="Cerrar Turno">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+        </button>
+        <!-- Título y nombre del cliente -->
+        <header class="text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-2">Comanda Cangre Burger</h1>
+            <p class="text-gray-500 mb-4">¡Un mordisco, y... BOOM! de sabor</p>
+            <div class="relative">
+                <input type="text" id="customer-name" placeholder="Nombre del Cliente"
+                       class="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all duration-300">
+                <!-- Icono de usuario -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+            </div>
+        </header>
+
+        <!-- Contenedor de las secciones del menú -->
+        <main>
+            <div id="menu-accordion" class="space-y-2">
+                <!-- El acordeón se generará aquí dinámicamente -->
+            </div>
+
+            <div id="cart-section" class="mt-6">
+                <h2 class="text-xl font-semibold text-gray-800 border-b pb-2 mb-4">Tu Pedido</h2>
+                <div id="cart-items" class="space-y-3">
+                    <p class="text-gray-500 text-center">Aún no has agregado productos.</p>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Pie de página con el total y el botón de pedido -->
+        <footer class="mt-8 pt-6 border-t-2 border-gray-200 flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
+            <div class="text-2xl font-bold text-gray-800">
+                Total: <span id="total-price">S/. 0.00</span>
+            </div>
+            <button id="place-order-button"
+                    class="w-full md:w-auto bg-amber-500 hover:bg-amber-600 transition-colors duration-300 text-white font-bold py-3 px-8 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-opacity-75">
+                Realizar Pedido
+            </button>
+        </footer>
+    </div>
+
+    <!-- Modal para el resumen del pedido -->
+    <div id="order-summary-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 md:p-8 relative transform transition-all duration-300 scale-95 opacity-0" id="modal-content">
+            <!-- Botón para cerrar el modal -->
+            <button id="close-modal-button" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            <h3 class="text-2xl font-bold text-gray-800 mb-4">Resumen del Pedido</h3>
+            <div id="summary-content" class="text-gray-600 space-y-3">
+                <!-- El resumen del pedido se generará aquí -->
+            </div>
+            <div class="mt-4">
+                <label for="order-notes" class="block text-sm font-medium text-gray-700">Notas del Pedido</label>
+                <textarea id="order-notes" rows="2" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="Ej: La hamburguesa clásica sin cebolla..."></textarea>
+            </div>
+            <div class="mt-6">
+                <h4 class="font-bold text-lg mb-3">Método de Pago</h4>
+                <div id="payment-methods" class="grid grid-cols-2 gap-4"></div>
+            </div>
+            <div class="mt-6 pt-4 border-t border-gray-200 text-right font-bold text-xl text-gray-800">
+                Total: <span id="summary-total-price"></span>
+            </div>
+            <!-- Botones de acción del modal -->
+            <div class="mt-8 flex justify-end space-x-4">
+                <button id="cancel-summary-button" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">Cancelar</button>
+                <button id="confirm-order-button" class="px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors">Confirmar y Enviar a Cocina</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Objeto global para almacenar los datos del menú.
+        let menuProducts = [];
+
+        // Objeto para llevar el registro de la cantidad de cada item.
+        let cart = [];
+
+        // Variable para almacenar el nombre del usuario logueado
+        let currentUsername = '';
+
+        // Función para renderizar los items del menú en el HTML.
+        async function renderMenuItems() {
+            const accordionContainer = document.getElementById('menu-accordion');
+            accordionContainer.innerHTML = ''; // Limpiar contenido previo
+
+            try {
+                // Cargar todos los datos necesarios en paralelo para mayor eficiencia
+                const [menuResponse, saucesResponse, categoryOrderResponse, paymentMethodsResponse] = await Promise.all([
+                    fetch('/api/menu'),
+                    fetch('/api/sauces'),
+                    fetch('/api/categories/ordered'),
+                    fetch('/api/payment-methods')
+                ]);
+
+                if (!menuResponse.ok || !saucesResponse.ok || !categoryOrderResponse.ok || !paymentMethodsResponse.ok) {
+                    throw new Error('No se pudo cargar la información del menú.');
+                }
+
+                menuProducts = await menuResponse.json();
+
+                // Agrupar productos por categoría
+                const menuByCategory = menuProducts.reduce((acc, product) => {
+                    const category = product.category;
+                    if (!acc[category]) acc[category] = [];
+                    acc[category].push(product);
+                    return acc;
+                }, {});
+
+                const categoryOrderData = await categoryOrderResponse.json();
+
+                // --- Lógica de Renderizado del Acordeón ---
+                const comboItemsHtml = (menuByCategory.combos || []).map(createMenuItemHtml).join('');
+
+                categoryOrderData.forEach(categoryInfo => {
+                    const categoryKey = categoryInfo.name;
+                    if (categoryKey === 'combos') return; // No crear un panel de acordeón para combos
+                    if (menuByCategory[categoryKey]) {
+                        let categoryContentHtml = menuByCategory[categoryKey].map(createMenuItemHtml).join('');
+                        
+                        // Lógica especial para añadir la opción de combo a hamburguesas y hotdogs
+                        if ((categoryKey === 'burgers' || categoryKey === 'hotdogs') && comboItemsHtml) {
+                            categoryContentHtml += `<h3 class="text-xl font-medium text-gray-600 pt-4 mt-4 border-t">Añade un Combo</h3>` + comboItemsHtml;
+                        }
+
+                        const accordionItem = createAccordionItem(categoryInfo.display_name, categoryKey, categoryContentHtml);
+                        accordionContainer.innerHTML += accordionItem;
+                    }
+                });
+                
+                // Añadir los listeners para la interactividad después de renderizar el HTML
+                setupAccordionListeners();
+
+                // Renderizar métodos de pago
+                const paymentMethods = await paymentMethodsResponse.json();
+                const paymentContainer = document.getElementById('payment-methods');
+                paymentContainer.innerHTML = paymentMethods.map((method, index) => `
+                    <label for="payment-${method.toLowerCase()}" class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                        <input type="radio" id="payment-${method.toLowerCase()}" name="payment" value="${method}" class="h-4 w-4 text-amber-600 border-gray-300 focus:ring-amber-500" ${index === 0 ? 'checked' : ''}>
+                        <span class="ml-3 text-sm font-medium text-gray-700">${method}</span>
+                    </label>
+                `).join('');
+
+            } catch (error) {
+                console.error("Error al renderizar el menú:", error);
+                const mainContainer = document.querySelector('main');
+                mainContainer.innerHTML = `<p class="text-center text-red-500 font-semibold">Error al cargar el menú. Por favor, recarga la página o contacta al administrador.</p>`;
+            }
+        }
+
+        // Función para crear la estructura de un panel del acordeón
+        function createAccordionItem(title, contentId, contentHtml) {
+            return `
+                <div>
+                    <h2 id="accordion-header-${contentId}">
+                        <button type="button" class="flex items-center justify-between w-full p-4 font-semibold text-left text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors" data-accordion-target="#accordion-body-${contentId}">
+                            <span>${title}</span>
+                            <svg data-accordion-icon class="w-6 h-6 shrink-0 transition-transform duration-300" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                        </button>
+                    </h2>
+                    <div id="accordion-body-${contentId}" class="hidden p-4 border border-t-0 border-gray-200 rounded-b-lg">
+                        <div class="space-y-4">
+                            ${contentHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Función para crear el HTML de un solo producto del menú.
+        function createMenuItemHtml(item) {
+            const isOutOfStock = item.stock <= 0;
+            const buttonDisabled = isOutOfStock ? 'disabled' : '';
+            const buttonClasses = isOutOfStock 
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-amber-500 hover:bg-amber-600';
+            const stockInfo = isOutOfStock 
+                ? '<span class="text-xs text-red-500 font-semibold">Agotado</span>'
+                : `<span class="text-xs text-gray-400">Stock: ${item.stock}</span>`;
+            
+            return `
+                <div class="flex items-center justify-between p-4 ${isOutOfStock ? 'bg-gray-200' : 'bg-gray-50'} rounded-lg shadow-sm">
+                    <div class="flex flex-col">
+                        <div class="text-lg font-medium ${isOutOfStock ? 'text-gray-500' : 'text-gray-800'}">${item.name}</div>
+                        <div class="text-sm ${isOutOfStock ? 'text-gray-400' : 'text-gray-500'}">S/. ${parseFloat(item.price).toFixed(2)}</div>
+                        ${stockInfo}
+                    </div>
+                    <button onclick="addItemToCart(${item.id}, event)" class="w-10 h-10 flex items-center justify-center text-white rounded-full transition-colors text-2xl font-light ${buttonClasses}" ${buttonDisabled}>+</button>
+                </div>
+            `;
+        }
+
+        function addItemToCart(productId, event) {
+            const product = menuProducts.find(p => p.id === productId);
+            if (!product) return;
+
+            // Verificación de stock al añadir
+            const quantityInCart = cart.filter(item => item.productId === productId).reduce((sum, item) => sum + item.quantity, 0);
+            if (quantityInCart >= product.stock) {
+                showToast(`No hay más stock para "${product.name}".`, 'error');
+                return;
+            }
+
+            // Para productos no personalizables, solo aumentamos la cantidad si ya está en el carrito
+            if (!product.is_customizable) {
+                const existingItem = cart.find(item => item.productId === productId);
+                if (existingItem) {
+                    existingItem.quantity++;
+                    renderCart();
+                    showToast(`Se añadió otra unidad de "${product.name}".`, 'success');
+                    return;
+                }
+            }
+
+            // Añadir como nuevo item
+            cart.push({
+                cartItemId: Date.now(), // ID único para este item en el carrito
+                productId: product.id,
+                name: product.name,
+                price: product.price,
+                category: product.category,
+                is_customizable: product.is_customizable,
+                quantity: 1,
+                sauces: []
+            });
+            renderCart();
+            showToast(`"${product.name}" agregado al pedido.`);
+
+            // Visual feedback on the button
+            const addButton = event.currentTarget;
+            if (addButton) {
+                const originalContent = addButton.innerHTML;
+                addButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>`;
+                addButton.classList.remove('bg-amber-500', 'hover:bg-amber-600');
+                addButton.classList.add('bg-green-500');
+                setTimeout(() => {
+                    addButton.innerHTML = originalContent;
+                    addButton.classList.remove('bg-green-500');
+                    addButton.classList.add('bg-amber-500', 'hover:bg-amber-600');
+                }, 1000);
+            }
+        }
+
+        function renderCart() {
+            const cartContainer = document.getElementById('cart-items');
+            if (cart.length === 0) {
+                cartContainer.innerHTML = `<p class="text-gray-500 text-center">Aún no has agregado productos.</p>`;
+                calculateTotal();
+                saveCartToLocalStorage(); // Guardar el estado vacío
+                return;
+            }
+
+            cartContainer.innerHTML = cart.map(item => {
+                const saucesButtonHtml = item.is_customizable ? 
+                    `<button onclick="toggleSauceSelector(${item.cartItemId})" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-2 rounded">Cremas</button>` : '';
+                
+                const selectedSaucesHtml = item.sauces.length > 0 ?
+                    `<div class="text-xs text-gray-500 mt-1 pl-2">Cremas: ${item.sauces.join(', ')}</div>` : '';
+
+                return `
+                    <div class="p-3 bg-white border rounded-lg">
+                        <div class="flex items-center justify-between">
+                            <div class="flex-grow">
+                                <p class="font-semibold text-gray-800">${item.name}</p>
+                                <p class="text-sm text-gray-500">S/. ${parseFloat(item.price).toFixed(2)}</p>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                ${saucesButtonHtml}
+                                <button onclick="updateCartItemQuantity(${item.cartItemId}, -1)" class="w-7 h-7 flex items-center justify-center bg-gray-200 rounded-full">-</button>
+                                <span class="w-5 text-center font-medium">${item.quantity}</span>
+                                <button onclick="updateCartItemQuantity(${item.cartItemId}, 1)" class="w-7 h-7 flex items-center justify-center bg-gray-200 rounded-full">+</button>
+                                <button onclick="removeCartItem(${item.cartItemId})" class="text-red-500 hover:text-red-700 p-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                        </div>
+                        ${selectedSaucesHtml}
+                        <div id="sauce-selector-${item.cartItemId}" class="hidden mt-2 pt-2 border-t"></div>
+                    </div>
+                `;
+            }).join('');
+            calculateTotal();
+            saveCartToLocalStorage(); // Guardar el carrito cada vez que se renderiza
+        }
+
+        function updateCartItemQuantity(cartItemId, change) {
+            const item = cart.find(i => i.cartItemId === cartItemId);
+            if (item) {
+                // Verificación de stock al aumentar cantidad
+                if (change > 0) {
+                    const product = menuProducts.find(p => p.id === item.productId);
+                    if (item.quantity >= product.stock) {
+                        showToast(`No hay más stock para "${product.name}".`, 'error');
+                        return;
+                    }
+                }
+
+                item.quantity += change;
+                if (item.quantity <= 0) {
+                    removeCartItem(cartItemId);
+                } else {
+                    renderCart();
+                }
+            }
+        }
+
+        function removeCartItem(cartItemId) {
+            cart = cart.filter(i => i.cartItemId !== cartItemId);
+            renderCart();
+        }
+
+        // Función para recalcular el total del pedido.
+        function calculateTotal() {
+            const total = cart.reduce((sum, item) => sum + (item.quantity * parseFloat(item.price)), 0);
+            document.getElementById('total-price').innerText = `S/. ${total.toFixed(2)}`;
+        }
+
+        // Event listener para el botón de "Realizar Pedido"
+        document.getElementById('place-order-button').addEventListener('click', () => {
+            const customerName = document.getElementById('customer-name').value.trim();
+            if (!customerName) {
+                showToast('El nombre del cliente es obligatorio.', 'error');
+                document.getElementById('customer-name').focus();
+                return;
+            }
+
+            const summaryContent = document.getElementById('summary-content');
+            summaryContent.innerHTML = '';
+            
+            const selectedPaymentMethod = document.querySelector('input[name="payment"]:checked')?.value;
+            if (!selectedPaymentMethod) {
+                // This check is now inside the modal, but we can keep it here as a pre-check
+                showToast('Por favor, seleccione un método de pago.', 'error');
+                return;
+            }
+
+            if (cart.length === 0) {
+                showToast('Por favor, selecciona al menos un producto.', 'error');
+                return;
+            }
+
+            // Genera el resumen del pedido
+            let summaryHtml = '';
+            if (customerName) {
+                summaryHtml += `<p><strong>Cliente:</strong> ${customerName}</p><hr class="my-2 border-gray-200">`;
+            }
+
+            summaryHtml += '<h4 class="font-bold text-lg mb-2">Productos:</h4>';            
+            cart.forEach(item => {
+                const subtotal = item.quantity * item.price;
+                summaryHtml += `<p class="flex justify-between items-center text-sm"><span class="flex-grow">${item.quantity}x ${item.name}</span><span class="font-semibold">S/. ${subtotal.toFixed(2)}</span></p>`;
+                if (item.sauces && item.sauces.length > 0) {
+                    summaryHtml += `<p class="text-xs text-gray-500 pl-4">Cremas: ${item.sauces.join(', ')}</p>`;
+                }
+            });
+
+            summaryContent.innerHTML = summaryHtml;
+            
+            // Actualiza el total en el modal
+            calculateTotal();
+            document.getElementById('summary-total-price').innerText = document.getElementById('total-price').innerText;
+
+            // Muestra el modal
+            const modal = document.getElementById('order-summary-modal');
+            const modalContent = document.getElementById('modal-content');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => {
+                modalContent.classList.remove('scale-95', 'opacity-0');
+                modalContent.classList.add('scale-100', 'opacity-100');
+            }, 50);
+        });
+
+        // Nueva función para manejar el cierre del modal
+        function closeModal() {
+            const modal = document.getElementById('order-summary-modal');
+            const modalContent = document.getElementById('modal-content');
+            modalContent.classList.remove('scale-100', 'opacity-100');
+            modalContent.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.remove('flex');
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        // Event listener para cerrar el modal
+        document.getElementById('close-modal-button').addEventListener('click', closeModal);
+        document.getElementById('cancel-summary-button').addEventListener('click', closeModal);
+
+        // Event listener para el botón de confirmación final
+        document.getElementById('confirm-order-button').addEventListener('click', async () => {
+            const customerName = document.getElementById('customer-name').value.trim();
+            const orderNotes = document.getElementById('order-notes').value;
+            const selectedPaymentMethod = document.querySelector('input[name="payment"]:checked')?.value;
+            const orderedItems = cart.map(item => ({
+                productId: item.productId,
+                name: item.name,
+                quantity: item.quantity,
+                price: parseFloat(item.price),
+                sauces: item.sauces
+            }));
+            const total = cart.reduce((sum, item) => sum + (item.quantity * parseFloat(item.price)), 0);
+
+            try {
+                const response = await fetch('/api/orders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('cangre_burger_token')}`
+                    },
+                    body: JSON.stringify({
+                        customerName: customerName,
+                        items: orderedItems,
+                        notes: orderNotes,
+                        paymentMethod: selectedPaymentMethod,
+                        total: total,
+                        timestamp: new Date().toISOString()
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    const errorMessage = errorData.message || 'El servidor rechazó el pedido.';
+                    showToast(`Error: ${errorMessage}`, 'error');
+                    throw new Error(errorMessage);
+                }
+
+                showToast('¡Pedido enviado a cocina!');
+                closeModal();
+                resetOrderForm();
+
+            } catch (error) {
+                console.error('Error al enviar el pedido:', error);
+                showToast('No se pudo enviar el pedido. Intente de nuevo.', 'error');
+            }
+        });
+
+        // --- Funciones de Persistencia del Carrito ---
+
+        function getUsernameFromToken() {
+            try {
+                // El token se obtiene de la variable global definida al inicio del script.
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                return payload.username;
+            } catch (e) {
+                console.error('Error al decodificar el token:', e);
+                return null;
+            }
+        }
+
+        function saveCartToLocalStorage() {
+            if (currentUsername) {
+                localStorage.setItem(`cangre_burger_cart_${currentUsername}`, JSON.stringify(cart));
+            }
+        }
+
+        function loadCartFromLocalStorage() {
+            if (currentUsername) {
+                const savedCart = localStorage.getItem(`cangre_burger_cart_${currentUsername}`);
+                if (savedCart) {
+                    cart = JSON.parse(savedCart);
+                    // Asegurarse de que los precios sean números para evitar errores de cálculo.
+                    cart.forEach(item => item.price = parseFloat(item.price));
+                }
+            }
+        }
+
+        document.getElementById('logout-button').addEventListener('click', () => {
+            localStorage.removeItem('cangre_burger_token');
+            window.location.href = '/login.html';
+        });
+
+        function resetOrderForm() {
+            cart = [];
+            document.getElementById('customer-name').value = '';
+            document.getElementById('order-notes').value = '';
+            if (currentUsername) {
+                localStorage.removeItem(`cangre_burger_cart_${currentUsername}`); // Limpiar el carrito guardado del usuario
+            }
+            renderCart();
+        }
+
+        // Inicia la aplicación al cargar la página
+        window.onload = function() {
+            currentUsername = getUsernameFromToken();
+            loadCartFromLocalStorage(); // Cargar el carrito guardado, si existe
+            renderMenuItems(); // Esta función ahora se encarga de todo el renderizado inicial
+            calculateTotal();
+        }
+
+        // --- Funciones para la interactividad del Acordeón y Cremas ---
+
+        function setupAccordionListeners() {
+            const accordionContainer = document.getElementById('menu-accordion');
+            accordionContainer.addEventListener('click', (e) => {
+                const button = e.target.closest('[data-accordion-target]');
+                if (!button) return;
+
+                const targetId = button.getAttribute('data-accordion-target');
+                const body = document.querySelector(targetId);
+                const icon = button.querySelector('[data-accordion-icon]');
+
+                if (body) {
+                    const isHidden = body.classList.contains('hidden');
+                    body.classList.toggle('hidden');
+                    icon.classList.toggle('rotate-180', isHidden);
+                }
+            });
+        }
+
+        async function toggleSauceSelector(cartItemId) {
+            const selectorDiv = document.getElementById(`sauce-selector-${cartItemId}`);
+            if (!selectorDiv) return;
+
+            // Si ya está visible, lo ocultamos
+            if (selectorDiv.innerHTML) {
+                selectorDiv.innerHTML = '';
+                selectorDiv.classList.add('hidden');
+                return;
+            }
+
+            const cartItem = cart.find(i => i.cartItemId === cartItemId);
+            const saucesResponse = await fetch('/api/sauces');
+            const allSauces = await saucesResponse.json();
+
+            selectorDiv.classList.remove('hidden');
+            const areAllSelected = allSauces.length > 0 && allSauces.every(sauce => cartItem.sauces.includes(sauce));
+
+            selectorDiv.innerHTML = `
+                <div class="space-y-2">
+                    <div>
+                        <label class="flex items-center font-semibold">
+                            <input type="checkbox" onchange="toggleAllSauces(${cartItemId}, this.checked)" class="form-checkbox h-4 w-4 rounded" ${areAllSelected ? 'checked' : ''}>
+                            <span class="ml-2">Seleccionar Todas</span>
+                        </label>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 border-t pt-2">
+                        ${allSauces.map(sauce => `
+                            <label class="flex items-center text-sm">
+                                <input type="checkbox" value="${sauce}" class="form-checkbox h-4 w-4 rounded individual-sauce-${cartItemId}" onchange="updateItemSauces(${cartItemId}, this)" ${cartItem.sauces.includes(sauce) ? 'checked' : ''}>
+                                <span class="ml-2">${sauce}</span>
+                            </label>
+                        `).join('')}
+                    </div>
+                    <div class="text-right mt-2">
+                        <button onclick="applySauces(${cartItemId})" class="text-sm bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-3 rounded-lg">Aplicar</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateItemSauces(cartItemId, checkbox) {
+            const cartItem = cart.find(i => i.cartItemId === cartItemId);
+            if (!cartItem) return;
+
+            if (checkbox.checked) {
+                if (!cartItem.sauces.includes(checkbox.value)) cartItem.sauces.push(checkbox.value);
+            } else {
+                cartItem.sauces = cartItem.sauces.filter(s => s !== checkbox.value);
+            }
+
+            // Sincronizar el estado del checkbox "Seleccionar Todas"
+            const allSauceCheckboxes = document.querySelectorAll(`#sauce-selector-${cartItemId} .individual-sauce-${cartItemId}`);
+            const selectAllCheckbox = document.querySelector(`#sauce-selector-${cartItemId} input[onchange^="toggleAllSauces"]`);
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = Array.from(allSauceCheckboxes).every(cb => cb.checked);
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toastContainer = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgColor = type === 'error' ? 'bg-red-600' : 'bg-gray-800';
+            toast.className = `toast ${bgColor} text-white text-sm font-semibold py-2 px-4 rounded-lg shadow-lg`;
+            toast.textContent = message;
+            
+            toastContainer.appendChild(toast);
+            setTimeout(() => {
+                toast.remove();
+            }, 3000); // El toast desaparece después de 3 segundos
+        }
+
+        function toggleAllSauces(cartItemId, isChecked) {
+            const cartItem = cart.find(i => i.cartItemId === cartItemId);
+            if (!cartItem) return;
+
+            const sauceCheckboxes = document.querySelectorAll(`#sauce-selector-${cartItemId} .individual-sauce-${cartItemId}`);
+            
+            if (isChecked) {
+                const allSauceValues = Array.from(sauceCheckboxes).map(cb => cb.value);
+                cartItem.sauces = [...new Set([...cartItem.sauces, ...allSauceValues])]; // Add all, avoid duplicates
+            } else {
+                cartItem.sauces = [];
+            }
+
+            sauceCheckboxes.forEach(checkbox => {
+                checkbox.checked = isChecked;
+            });
+        }
+
+        function applySauces(cartItemId) {
+            const selectorDiv = document.getElementById(`sauce-selector-${cartItemId}`);
+            if (selectorDiv) {
+                selectorDiv.innerHTML = '';
+                selectorDiv.classList.add('hidden');
+            }
+            renderCart(); // Ahora sí, re-renderizamos para mostrar los cambios
+        }
+    </script>
+</body>
+</html>

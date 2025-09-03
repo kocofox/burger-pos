@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestionar Recetas - Cangre Burger</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .toast { animation: slideInUp 0.5s ease-out, fadeOut 0.5s ease-in 2.5s forwards; }
+        @keyframes slideInUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2"></div>
+
+    <div class="max-w-4xl mx-auto">
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-4xl font-bold text-gray-800">Gestionar Recetas</h1>
+                <p class="text-gray-500">Asocia insumos a los productos compuestos.</p>
+            </div>
+            <a href="/dashboard" class="text-blue-600 hover:underline">&larr; Volver al Dashboard</a>
+        </header>
+
+        <main class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <!-- Columna de la lista de productos -->
+            <div class="md:col-span-1 bg-white p-6 rounded-2xl shadow-lg">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Productos Compuestos</h2>
+                <div id="product-list-container" class="space-y-2 max-h-[60vh] overflow-y-auto">
+                    <!-- Los productos se cargarán aquí -->
+                </div>
+            </div>
+
+            <!-- Columna para gestionar la receta -->
+            <div class="md:col-span-2 bg-white p-6 rounded-2xl shadow-lg">
+                <div id="recipe-container">
+                    <div class="text-center text-gray-500 pt-16">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                        </svg>
+                        <h3 class="mt-2 text-sm font-medium text-gray-900">Sin producto seleccionado</h3>
+                        <p class="mt-1 text-sm text-gray-500">Selecciona un producto de la lista para ver o editar su receta.</p>
+                    </div>
+                    <!-- El formulario de la receta se inyectará aquí -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('cangre_burger_token');
+        if (!token) window.location.href = '/login.html';
+
+        const productListContainer = document.getElementById('product-list-container');
+        const recipeContainer = document.getElementById('recipe-container');
+
+        let allIngredients = [];
+        let currentProductId = null;
+
+        async function loadCompoundProducts() {
+            const response = await fetch('/api/products/compound', { headers: { 'Authorization': `Bearer ${token}` } });
+            const products = await response.json();
+            productListContainer.innerHTML = products.map(p => `
+                <button data-product-id="${p.id}" data-product-name="${p.name}" class="w-full text-left p-3 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    ${p.name}
+                </button>
+            `).join('');
+
+            productListContainer.querySelectorAll('button').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const clickedButton = e.currentTarget;
+                    productListContainer.querySelectorAll('button').forEach(btn => btn.classList.remove('bg-purple-100', 'text-purple-700', 'font-semibold'));
+                    clickedButton.classList.add('bg-purple-100', 'text-purple-700', 'font-semibold');
+                    
+                    currentProductId = clickedButton.dataset.productId;
+                    const productName = clickedButton.dataset.productName;
+                    loadRecipeForProduct(currentProductId, productName);
+                });
+            });
+        }
+
+        async function loadAllIngredients() {
+            const response = await fetch('/api/ingredients', { headers: { 'Authorization': `Bearer ${token}` } });
+            allIngredients = await response.json();
+        }
+
+        async function loadRecipeForProduct(productId, productName) {
+            const response = await fetch(`/api/recipes/${productId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const recipe = await response.json();
+            
+            const ingredientsHtml = allIngredients.map(i => {
+                const recipeItem = recipe.find(r => r.ingredient_id === i.id);
+                const isChecked = !!recipeItem;
+                const quantity = recipeItem ? recipeItem.quantity_required : 1;
+                
+                return `
+                    <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                        <label class="flex items-center flex-grow cursor-pointer">
+                            <input type="checkbox" data-ingredient-id="${i.id}" class="form-checkbox h-5 w-5 rounded text-purple-600" ${isChecked ? 'checked' : ''}>
+                            <span class="ml-3 text-gray-700">${i.name}</span>
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <label for="qty-${i.id}" class="text-sm">Cantidad:</label>
+                            <input type="number" id="qty-${i.id}" value="${quantity}" min="1" class="w-20 p-1 border border-gray-300 rounded-md" ${!isChecked ? 'disabled' : ''}>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            recipeContainer.innerHTML = `
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Receta para <span class="text-purple-600">${productName}</span></h2>
+                <form id="recipe-form">
+                    <div id="all-ingredients-list" class="space-y-2 mb-6 border-t pt-4 max-h-[50vh] overflow-y-auto">
+                        <h3 class="text-lg font-medium text-gray-800 mb-2">Insumos Disponibles</h3>
+                        ${ingredientsHtml}
+                    </div>
+                    <div class="text-right">
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Guardar Receta</button>
+                    </div>
+                </form>
+            `;
+
+            // Add listeners to the newly created elements
+            recipeContainer.querySelectorAll('input[type="checkbox"]').forEach(checkbox => checkbox.addEventListener('change', handleCheckboxChange));
+            document.getElementById('recipe-form').addEventListener('submit', saveRecipe);
+        }
+
+        async function saveRecipe(e) {
+            e.preventDefault();
+            if (!currentProductId) {
+                showToast('Por favor, selecciona un producto primero.', 'error');
+                return;
+            }
+
+            const ingredientsForRecipe = [];
+
+            recipeContainer.querySelectorAll('input[type="checkbox"]:checked').forEach(checkbox => {
+                const ingredientId = checkbox.dataset.ingredientId;
+                const quantity = document.getElementById(`qty-${ingredientId}`).value;
+                ingredientsForRecipe.push({ ingredient_id: ingredientId, quantity_required: quantity });
+            });
+
+            const response = await fetch(`/api/recipes/${currentProductId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ ingredients: ingredientsForRecipe })
+            });
+
+            if (response.ok) {
+                showToast('Receta guardada exitosamente.');
+            } else {
+                showToast('Error al guardar la receta.', 'error');
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toastContainer = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgColor = type === 'error' ? 'bg-red-600' : 'bg-gray-800';
+            toast.className = `toast ${bgColor} text-white text-sm font-semibold py-2 px-4 rounded-lg shadow-lg`;
+            toast.textContent = message;
+            
+            toastContainer.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function handleCheckboxChange(e) {
+            const checkbox = e.target;
+            const ingredientId = checkbox.dataset.ingredientId;
+            const quantityInput = document.getElementById(`qty-${ingredientId}`);
+            quantityInput.disabled = !checkbox.checked;
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await Promise.all([
+                loadCompoundProducts(),
+                loadAllIngredients()
+            ]);
+        });
+    </script>
+</body>
+</html>

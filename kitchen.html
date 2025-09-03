@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cocina - Cangre Burger</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .order-card {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .order-card.removing {
+            animation: fadeOut 0.5s ease-in-out forwards;
+        }
+
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-800 text-white p-4">
+    <header class="text-center mb-6">
+        <h1 class="text-4xl font-bold text-amber-400">Órdenes de Cocina</h1>
+        <div id="status-indicator" class="mt-2 text-sm font-semibold bg-red-500 text-white py-1 px-3 rounded-full inline-block cursor-pointer">Desconectado (Click para activar sonido)</div>
+    </header>
+
+    <main id="orders-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <!-- Las órdenes aparecerán aquí -->
+    </main>
+
+    <audio id="notification-sound" src="https://static.whatsapp.net/rsrc.php/yW/r/BS_BUUXbKq5.mp3" preload="auto"></audio>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // --- Setup & Authentication ---
+        const token = localStorage.getItem('cangre_burger_token');
+        if (!token) {
+            window.location.href = '/login.html';
+        }
+
+        const socket = io({
+            auth: {
+                token: token
+            }
+        });
+
+        // --- DOM Elements ---
+        const ordersContainer = document.getElementById('orders-container');
+        const notificationSound = document.getElementById('notification-sound');
+        const statusIndicator = document.getElementById('status-indicator');
+
+        function renderOrderCard(order) {
+            // Evita duplicar una tarjeta si ya existe (por si acaso)
+            if (document.getElementById(`order-card-${order.id}`)) return;
+
+            const orderCard = document.createElement('div');
+            orderCard.className = 'order-card bg-gray-700 rounded-lg p-4 shadow-lg flex flex-col';
+            orderCard.id = `order-card-${order.id}`;
+
+            let itemsHtml = order.items.map(item => {
+                let sauceLine = '';
+                if (item.sauces && item.sauces.length > 0) {
+                    sauceLine = `<div class="text-xs text-amber-300 pl-5">- Cremas: ${item.sauces.join(', ')}</div>`;
+                }
+                return `<li class="text-gray-300">${item.quantity}x ${item.name}</li>${sauceLine}`;
+            }).join('');
+
+            let notesHtml = '';
+            if (order.notes) {
+                notesHtml = `
+                    <div class="pt-2 mt-2 border-t border-gray-600">
+                        <h4 class="font-semibold text-amber-400">Notas:</h4>
+                        <p class="text-sm text-gray-400 whitespace-pre-wrap">${order.notes}</p>
+                    </div>
+                `;
+            }
+
+            orderCard.innerHTML = `
+                <div class="flex-grow">
+                    <div class="flex justify-between items-center border-b border-gray-600 pb-2">
+                        <h3 class="text-xl font-bold text-white">Cliente: ${order.customer_name}</h3>
+                        <span class="text-xs text-gray-400">${new Date(order.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                    <ul class="list-disc list-inside mt-2">${itemsHtml}</ul>
+                    ${notesHtml}
+                </div>
+                <div class="mt-4">
+                    <button onclick="markAsReady(${order.id})" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                        Listo
+                    </button>
+                </div>
+            `;
+
+            ordersContainer.prepend(orderCard);
+        }
+
+        async function loadPendingOrders() {
+            try {
+                const response = await fetch('/api/orders/pending', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) {
+                    // Si el token es inválido o el rol no es correcto, el servidor devolverá un error.
+                    if (response.status === 401 || response.status === 403) {
+                        ordersContainer.innerHTML = `<p class="text-red-500 col-span-full text-center">Acceso denegado. Por favor, inicie sesión con una cuenta de cocina o administrador.</p>`;
+                        // Desconectar el socket para no recibir órdenes si no se tiene permiso.
+                        socket.disconnect();
+                        return;
+                    }
+                    throw new Error('No se pudieron cargar las órdenes pendientes.');
+                }
+                const pendingOrders = await response.json();
+                ordersContainer.innerHTML = ''; // Limpiar contenido previo
+                pendingOrders.forEach(order => renderOrderCard(order));
+            } catch (error) {
+                console.error(error);
+                ordersContainer.innerHTML = `<p class="text-red-500 col-span-full text-center">${error.message}</p>`;
+            }
+        }
+
+        // --- Socket Event Listeners ---
+        socket.on('connect_error', (err) => {
+            // Manejar errores de autenticación del socket
+            console.error('Error de conexión de Socket:', err.message);
+            ordersContainer.innerHTML = `<p class="text-red-500 col-span-full text-center">Error de autenticación. No se pueden recibir órdenes en tiempo real. Por favor, inicie sesión de nuevo.</p>`;
+        });
+
+        socket.on('new_order', (order) => {
+            notificationSound.play();
+            renderOrderCard(order);
+        });
+
+        function markAsReady(orderId) {
+            socket.emit('mark_order_ready', orderId);
+        }
+
+        socket.on('remove_order', (orderId) => {
+            const cardToRemove = document.getElementById(`order-card-${orderId}`);
+            if (cardToRemove) {
+                cardToRemove.classList.add('removing');
+                setTimeout(() => {
+                    cardToRemove.remove();
+                }, 500); // Espera a que termine la animación
+            }
+        });
+
+        // --- Initialization on User Interaction ---
+        function initializeKitchen() {
+            // Change status indicator
+            statusIndicator.textContent = 'Conectado y esperando órdenes...';
+            statusIndicator.classList.remove('bg-red-500', 'cursor-pointer');
+            statusIndicator.classList.add('bg-green-500');
+
+            // Now that we have user interaction, we can set up listeners and load data
+            socket.on('connect_error', (err) => {
+                console.error('Error de conexión de Socket:', err.message);
+                ordersContainer.innerHTML = `<p class="text-red-500 col-span-full text-center">Error de autenticación. No se pueden recibir órdenes en tiempo real. Por favor, inicie sesión de nuevo.</p>`;
+            });
+
+            socket.on('new_order', (order) => {
+                notificationSound.play();
+                renderOrderCard(order);
+            });
+
+            loadPendingOrders();
+        }
+
+        // The listener runs only once after the first click.
+        statusIndicator.addEventListener('click', initializeKitchen, { once: true });
+    </script>
+</body>
+
+</html>
