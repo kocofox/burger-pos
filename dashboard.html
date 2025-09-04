@@ -362,24 +362,27 @@
                 userRole = payload.role;
 
                 adminMenuItemsContainer.innerHTML = ''; // Limpiar por si acaso
+                
                 if (userRole === 'admin') {
                     const adminLinks = [
                         { href: '/manage-products.html', text: 'Gestionar Productos' },
                         { href: '/manage-recipes.html', text: 'Gestionar Recetas' },
                         { href: '/manage-ingredients.html', text: 'Gestionar Insumos' },
                         { href: '/manage-sauces.html', text: 'Gestionar Cremas' },
-                        { href: '/manage-expenses.html', text: 'Gestionar Gastos' }
+                        { href: '/manage-expenses.html', text: 'Gestionar Gastos' },
+                        { href: '/accounts.html', text: 'Cuentas Abiertas' },
+                        { href: '/kitchen', text: 'Ir a Cocina' }
                     ];
                     adminLinks.forEach(link => {
                         adminMenuItemsContainer.innerHTML += `<a href="${link.href}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">${link.text}</a>`;
                     });
                     document.querySelector('.border-t').style.display = 'block';
-                }
-                if (userRole === 'kitchen' || userRole === 'admin') {
+                } else if (userRole === 'kitchen') {
                     adminMenuItemsContainer.innerHTML += `<a href="/kitchen" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Ir a Cocina</a>`;
-                }
-                if (userRole === 'cashier') {
+                } else if (userRole === 'cashier') {
                     adminMenuItemsContainer.innerHTML += `<a href="/" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Ir a Comanda</a>`;
+                    adminMenuItemsContainer.innerHTML += `<a href="/accounts.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Cuentas Abiertas</a>`;
+                    adminMenuItemsContainer.innerHTML += `<a href="/manage-expenses.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Registrar Gasto</a>`;
                 }
 
                 // Ocultar secciones financieras para el rol de cocina
@@ -388,9 +391,6 @@
                     document.getElementById('payment-report-section').style.display = 'none';
                 }
 
-                if (userRole === 'cashier') {
-                    adminMenuItemsContainer.innerHTML += `<a href="/manage-expenses.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Registrar Gasto</a>`;
-                }
             } catch (e) {
                 console.error('Error al decodificar token:', e);
                 adminMenuItemsContainer.innerHTML = '';

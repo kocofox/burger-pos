@@ -47,11 +47,23 @@
 
     <!-- Contenedor principal de la comanda -->
     <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 md:p-8 space-y-8">
-        <button id="logout-button" class="absolute top-6 right-6 p-2 text-red-500 hover:text-red-700 transition-colors" title="Cerrar Turno">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-        </button>
+        <div class="absolute top-6 right-6 flex items-center space-x-4">
+            <a href="/" class="p-2 text-gray-500 hover:text-blue-600 transition-colors" title="Ir al Inicio">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+            </a>
+            <a href="/dashboard" class="p-2 text-gray-500 hover:text-blue-600 transition-colors" title="Ir al Dashboard">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 00-2-2h-2a2 2 0 00-2 2v4" />
+                </svg>
+            </a>
+            <button id="logout-button" class="p-2 text-red-500 hover:text-red-700 transition-colors" title="Cerrar Sesión">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+            </button>
+        </div>
         <!-- Título y nombre del cliente -->
         <header class="text-center">
             <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-2">Comanda Cangre Burger</h1>
@@ -119,8 +131,10 @@
             </div>
             <!-- Botones de acción del modal -->
             <div class="mt-8 flex justify-end space-x-4">
-                <button id="cancel-summary-button" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">Cancelar</button>
-                <button id="confirm-order-button" class="px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors">Confirmar y Enviar a Cocina</button>
+                <button id="cancel-summary-button" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancelar</button>
+                <button id="open-account-button" class="hidden px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Abrir Cuenta</button>
+                <button id="confirm-order-button" class="hidden px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700">Enviar y Cobrar</button>
+                <button id="add-to-account-button" class="hidden px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Añadir a Cuenta</button>
             </div>
         </div>
     </div>
@@ -134,6 +148,9 @@
 
         // Variable para almacenar el nombre del usuario logueado
         let currentUsername = '';
+
+        // Determinar el modo de operación desde la URL
+        let orderMode = new URLSearchParams(window.location.search).get('mode') || 'pickup';
 
         // Función para renderizar los items del menú en el HTML.
         async function renderMenuItems() {
@@ -439,6 +456,31 @@
             }, 300);
         }
 
+        function setupUIForMode(accountName = '') {
+            const openAccountBtn = document.getElementById('open-account-button');
+            const confirmOrderBtn = document.getElementById('confirm-order-button');
+            const addToAccountBtn = document.getElementById('add-to-account-button');
+            const paymentMethodsContainer = document.getElementById('payment-methods').parentElement;
+            const customerNameInput = document.getElementById('customer-name');
+            const pageTitle = document.querySelector('header h1');
+
+            if (orderMode === 'salon') {
+                openAccountBtn.classList.remove('hidden');
+                paymentMethodsContainer.classList.add('hidden');
+            } else if (orderMode === 'pickup') {
+                confirmOrderBtn.classList.remove('hidden');
+                paymentMethodsContainer.classList.remove('hidden');
+            } else if (orderMode === 'add_items') {
+                pageTitle.innerText = 'Añadir a Cuenta';
+                customerNameInput.value = accountName;
+                customerNameInput.disabled = true;
+                addToAccountBtn.classList.remove('hidden');
+                paymentMethodsContainer.classList.add('hidden');
+                // Ocultar el botón de ir al dashboard para evitar confusiones
+                document.querySelector('a[href="/dashboard"]').style.display = 'none';
+            }
+        }
+
         // Event listener para cerrar el modal
         document.getElementById('close-modal-button').addEventListener('click', closeModal);
         document.getElementById('cancel-summary-button').addEventListener('click', closeModal);
@@ -446,50 +488,75 @@
         // Event listener para el botón de confirmación final
         document.getElementById('confirm-order-button').addEventListener('click', async () => {
             const customerName = document.getElementById('customer-name').value.trim();
-            const orderNotes = document.getElementById('order-notes').value;
             const selectedPaymentMethod = document.querySelector('input[name="payment"]:checked')?.value;
-            const orderedItems = cart.map(item => ({
-                productId: item.productId,
-                name: item.name,
-                quantity: item.quantity,
-                price: parseFloat(item.price),
-                sauces: item.sauces
-            }));
+            if (!selectedPaymentMethod) {
+                showToast('Por favor, seleccione un método de pago.', 'error');
+                return;
+            }
+            confirmOrder(true);
+        });
+
+        document.getElementById('open-account-button').addEventListener('click', () => confirmOrder(false));
+
+        document.getElementById('add-to-account-button').addEventListener('click', async () => {
+            const activeAccountId = sessionStorage.getItem('active_account_id');
+            if (!activeAccountId) {
+                showToast('Error: No se encontró una cuenta activa.', 'error');
+                return;
+            }
+            if (cart.length === 0) {
+                showToast('Añada al menos un producto.', 'error');
+                return;
+            }
+
+            const orderNotes = document.getElementById('order-notes').value;
+            const orderedItems = cart.map(item => ({ productId: item.productId, name: item.name, quantity: item.quantity, price: parseFloat(item.price), sauces: item.sauces }));
+
+            try {
+                const response = await fetch(`/api/accounts/${activeAccountId}/items`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ items: orderedItems, notes: orderNotes }),
+                });
+                if (!response.ok) throw new Error((await response.json()).message || 'El servidor rechazó la adición.');
+                showToast('Items añadidos. Redirigiendo a cuentas...');
+                resetOrderForm();
+                setTimeout(() => { window.location.href = '/accounts.html'; }, 1000);
+            } catch (error) {
+                showToast(`Error: ${error.message}`, 'error');
+            }
+        });
+
+        async function confirmOrder(isPaid) {
+            const customerName = document.getElementById('customer-name').value.trim();
+            const orderNotes = document.getElementById('order-notes').value;
+            const selectedPaymentMethod = isPaid ? document.querySelector('input[name="payment"]:checked')?.value : null;
+
+            const orderedItems = cart.map(item => ({ productId: item.productId, name: item.name, quantity: item.quantity, price: parseFloat(item.price), sauces: item.sauces }));
             const total = cart.reduce((sum, item) => sum + (item.quantity * parseFloat(item.price)), 0);
 
             try {
                 const response = await fetch('/api/orders', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('cangre_burger_token')}`
-                    },
-                    body: JSON.stringify({
-                        customerName: customerName,
-                        items: orderedItems,
-                        notes: orderNotes,
-                        paymentMethod: selectedPaymentMethod,
-                        total: total,
-                        timestamp: new Date().toISOString()
-                    }),
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ customerName, items: orderedItems, notes: orderNotes, paymentMethod: selectedPaymentMethod, total }),
                 });
 
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    const errorMessage = errorData.message || 'El servidor rechazó el pedido.';
-                    showToast(`Error: ${errorMessage}`, 'error');
-                    throw new Error(errorMessage);
+                if (!response.ok) throw new Error((await response.json()).message || 'El servidor rechazó el pedido.');
+
+                if (isPaid) {
+                    showToast('¡Pedido enviado y cobrado!');
+                    closeModal();
+                    resetOrderForm();
+                } else {
+                    showToast('¡Cuenta abierta! Redirigiendo...');
+                    resetOrderForm();
+                    setTimeout(() => { window.location.href = '/accounts.html'; }, 1000);
                 }
-
-                showToast('¡Pedido enviado a cocina!');
-                closeModal();
-                resetOrderForm();
-
             } catch (error) {
-                console.error('Error al enviar el pedido:', error);
-                showToast('No se pudo enviar el pedido. Intente de nuevo.', 'error');
+                showToast(`Error: ${error.message}`, 'error');
             }
-        });
+        }
 
         // --- Funciones de Persistencia del Carrito ---
 
@@ -533,11 +600,27 @@
             if (currentUsername) {
                 localStorage.removeItem(`cangre_burger_cart_${currentUsername}`); // Limpiar el carrito guardado del usuario
             }
+            sessionStorage.removeItem('active_account_id'); // Limpiar la cuenta activa
             renderCart();
         }
 
         // Inicia la aplicación al cargar la página
-        window.onload = function() {
+        window.onload = async function() {
+            const activeAccountId = sessionStorage.getItem('active_account_id');
+            if (activeAccountId && orderMode === 'add_items') {
+                // Estamos en modo "añadir a cuenta", necesitamos el nombre del cliente
+                try {
+                    const response = await fetch('/api/accounts/open', { headers: { 'Authorization': `Bearer ${token}` } });
+                    const accounts = await response.json();
+                    const activeAccount = accounts.find(acc => acc.id == activeAccountId);
+                    setupUIForMode(activeAccount ? activeAccount.customer_name : 'Cliente Desconocido');
+                } catch (e) {
+                    setupUIForMode('Error al cargar nombre');
+                }
+            } else {
+                setupUIForMode(); // Configura los botones según el modo (pickup o salon)
+            }
+
             currentUsername = getUsernameFromToken();
             loadCartFromLocalStorage(); // Cargar el carrito guardado, si existe
             renderMenuItems(); // Esta función ahora se encarga de todo el renderizado inicial

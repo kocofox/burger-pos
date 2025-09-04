@@ -38,6 +38,15 @@
                 transform: scale(0.9);
             }
         }
+
+        .highlight-flash {
+            animation: flash 1s ease-in-out;
+        }
+
+        @keyframes flash {
+            0%, 100% { background-color: #374151; } /* bg-gray-700 */
+            50% { background-color: #d97706; } /* bg-amber-600 */
+        }
     </style>
 </head>
 
@@ -82,13 +91,21 @@
             orderCard.className = 'order-card bg-gray-700 rounded-lg p-4 shadow-lg flex flex-col';
             orderCard.id = `order-card-${order.id}`;
 
+            // Diferenciar entre items ya servidos (en una tanda anterior) y los nuevos.
+            // Por defecto, en una orden nueva, todos los items son 'nuevos'.
             let itemsHtml = order.items.map(item => {
                 let sauceLine = '';
                 if (item.sauces && item.sauces.length > 0) {
                     sauceLine = `<div class="text-xs text-amber-300 pl-5">- Cremas: ${item.sauces.join(', ')}</div>`;
                 }
-                return `<li class="text-gray-300">${item.quantity}x ${item.name}</li>${sauceLine}`;
+                // Los items nuevos se resaltan.
+                return `<li class="text-gray-100 font-semibold">${item.quantity}x ${item.name}</li>${sauceLine}`;
             }).join('');
+
+            // Si la orden es una adición, el nombre del cliente lo indicará.
+            const customerName = order.is_addition 
+                ? `${order.customer_name} <span class="text-amber-400 font-normal">(Adición)</span>`
+                : order.customer_name;
 
             let notesHtml = '';
             if (order.notes) {
@@ -103,7 +120,7 @@
             orderCard.innerHTML = `
                 <div class="flex-grow">
                     <div class="flex justify-between items-center border-b border-gray-600 pb-2">
-                        <h3 class="text-xl font-bold text-white">Cliente: ${order.customer_name}</h3>
+                        <h3 class="text-xl font-bold text-white">Cliente: ${customerName}</h3>
                         <span class="text-xs text-gray-400">${new Date(order.timestamp).toLocaleTimeString()}</span>
                     </div>
                     <ul class="list-disc list-inside mt-2">${itemsHtml}</ul>
@@ -152,6 +169,32 @@
         socket.on('new_order', (order) => {
             notificationSound.play();
             renderOrderCard(order);
+        });
+
+        socket.on('new_addition', (addition) => {
+            notificationSound.play();
+            const existingCard = document.getElementById(`order-card-${addition.orderId}`);
+            if (existingCard) {
+                // Marcar los items existentes como servidos
+                existingCard.querySelectorAll('ul li').forEach(li => {
+                    li.classList.remove('text-gray-100', 'font-semibold');
+                    li.classList.add('text-gray-400', 'line-through');
+                });
+
+                // Añadir los nuevos items resaltados
+                const itemsList = existingCard.querySelector('ul');
+                const newItemsHtml = addition.newItems.map(item => {
+                    let sauceLine = '';
+                    if (item.sauces && item.sauces.length > 0) {
+                        sauceLine = `<div class="text-xs text-amber-300 pl-5">- Cremas: ${item.sauces.join(', ')}</div>`;
+                    }
+                    return `<li class="text-gray-100 font-semibold text-amber-300">${item.quantity}x ${item.name} (NUEVO)</li>${sauceLine}`;
+                }).join('');
+
+                itemsList.insertAdjacentHTML('beforeend', newItemsHtml);
+                existingCard.classList.add('highlight-flash');
+                setTimeout(() => existingCard.classList.remove('highlight-flash'), 1000);
+            }
         });
 
         function markAsReady(orderId) {

@@ -17,8 +17,8 @@ module.exports = (sequelize, DataTypes) => {
     },
     notes: DataTypes.TEXT,
     status: {
-      type: DataTypes.STRING,
-      defaultValue: 'pending'
+      type: DataTypes.ENUM('serving', 'pending', 'completed', 'paid', 'cancelled'),
+      defaultValue: 'pending' // El estado por defecto ahora es 'pending'
     },
     payment_method: DataTypes.STRING,
     timestamp: {

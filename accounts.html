@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cuentas Abiertas - Cangre Burger</title>
+    <link href="/dist/output.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-7xl mx-auto">
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-4xl font-bold text-gray-800">Cuentas Abiertas</h1>
+                <p class="text-gray-500">Gestiona los pedidos de los clientes que consumen en el local.</p>
+            </div>
+            <a href="/" class="text-blue-600 hover:underline">&larr; Volver al Inicio</a>
+        </header>
+
+        <main class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Columna para órdenes pendientes en cocina -->
+            <div class="bg-gray-200 p-4 rounded-lg">
+                <h2 class="text-xl font-bold text-gray-700 mb-4">Pendiente en Cocina</h2>
+                <div id="pending-accounts-container" class="space-y-4">
+                    <!-- Cuentas pendientes se cargarán aquí -->
+                </div>
+            </div>
+            <!-- Columna para órdenes servidas -->
+            <div class="bg-gray-200 p-4 rounded-lg">
+                <h2 class="text-xl font-bold text-gray-700 mb-4">Listo para Servir / Añadir</h2>
+                <div id="serving-accounts-container" class="space-y-4">
+                    <!-- Cuentas servidas se cargarán aquí -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal para cobrar cuenta -->
+    <div id="payment-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h3 class="text-2xl font-bold text-gray-800 mb-4">Cobrar Cuenta</h3>
+            <div id="payment-summary" class="mb-4"></div>
+            <div>
+                <h4 class="font-bold text-lg mb-3">Método de Pago</h4>
+                <div id="payment-methods-modal" class="grid grid-cols-2 gap-4"></div>
+            </div>
+            <div class="mt-8 flex justify-end space-x-4">
+                <button onclick="closePaymentModal()" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancelar</button>
+                <button id="confirm-payment-button" class="px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700">Confirmar Pago</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('cangre_burger_token');
+        if (!token) window.location.href = '/login.html';
+
+        const pendingContainer = document.getElementById('pending-accounts-container');
+        const servingContainer = document.getElementById('serving-accounts-container');
+        const paymentModal = document.getElementById('payment-modal');
+        const paymentSummary = document.getElementById('payment-summary');
+        const paymentMethodsContainer = document.getElementById('payment-methods-modal');
+        const confirmPaymentBtn = document.getElementById('confirm-payment-button');
+        let currentAccountId = null;
+
+        async function loadOpenAccounts() {
+            const response = await fetch('/api/accounts/open', { headers: { 'Authorization': `Bearer ${token}` } });
+            const accounts = await response.json();
+            pendingContainer.innerHTML = '';
+            servingContainer.innerHTML = '';
+
+            if (accounts.length === 0) {
+                pendingContainer.innerHTML = `<p class="text-center text-gray-500">No hay cuentas pendientes.</p>`;
+                servingContainer.innerHTML = `<p class="text-center text-gray-500">No hay cuentas listas.</p>`;
+                return;
+            }
+
+            accounts.forEach(account => {
+                const itemsHtml = account.orderItems.map(item => `<li>${item.quantity}x ${item.product.name}</li>`).join('');
+                const card = `
+                    <div class="bg-white rounded-lg shadow-md p-4 flex flex-col">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="font-bold text-xl text-gray-800">${account.customer_name}</h3>
+                            <span class="text-xs text-gray-400">${new Date(account.timestamp).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        <div class="flex-grow">
+                            <div class="bg-gray-50 p-2 rounded-md max-h-24 overflow-y-auto">
+                                <ul class="text-sm text-gray-700 list-disc list-inside">${itemsHtml}</ul>
+                            </div>
+                            <p class="text-right text-2xl font-bold text-gray-900 mt-3">S/. ${parseFloat(account.total).toFixed(2)}</p>
+                        </div>
+                        <div class="mt-4 pt-4 border-t flex gap-2">
+                            <button onclick="addMoreItems(${account.id})" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition-colors text-sm">Añadir</button>
+                            <button onclick="showPaymentModal(${account.id}, ${account.total})" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition-colors text-sm">Cobrar</button>
+                        </div>
+                    </div>
+                `;
+                if (account.status === 'pending') {
+                    pendingContainer.innerHTML += card;
+                } else { // 'serving'
+                    servingContainer.innerHTML += card;
+                }
+            });
+        }
+
+        function addMoreItems(orderId) {
+            // Guardamos el ID de la cuenta en sessionStorage para que la página de comanda lo pueda leer
+            sessionStorage.setItem('active_account_id', orderId);
+            window.location.href = '/burger.html?mode=add_items'; // Redirigimos a la página de comanda en modo "añadir items"
+        }
+
+        async function showPaymentModal(orderId, total) {
+            currentAccountId = orderId;
+            paymentSummary.innerHTML = `<p>Total a pagar: <span class="font-bold text-xl">S/. ${parseFloat(total).toFixed(2)}</span></p>`;
+            
+            const response = await fetch('/api/payment-methods');
+            const methods = await response.json();
+            paymentMethodsContainer.innerHTML = methods.map((method, index) => `
+                <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input type="radio" name="payment-modal" value="${method}" class="h-4 w-4 text-amber-600" ${index === 0 ? 'checked' : ''}>
+                    <span class="ml-3 text-sm font-medium">${method}</span>
+                </label>
+            `).join('');
+
+            paymentModal.classList.remove('hidden');
+            paymentModal.classList.add('flex');
+        }
+
+        function closePaymentModal() {
+            paymentModal.classList.add('hidden');
+            paymentModal.classList.remove('flex');
+            currentAccountId = null;
+        }
+
+        confirmPaymentBtn.addEventListener('click', async () => {
+            const paymentMethod = document.querySelector('input[name="payment-modal"]:checked')?.value;
+            if (!paymentMethod || !currentAccountId) return;
+            const response = await fetch(`/api/orders/${currentAccountId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ status: 'paid', payment_method: paymentMethod })
+            });
+            if (response.ok) {
+                closePaymentModal();
+                loadOpenAccounts();
+            } else {
+                alert('Error al procesar el pago.');
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', loadOpenAccounts);
+    </script>
+</body>
+</html>

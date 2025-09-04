@@ -289,11 +289,14 @@ app.post('/api/orders', verifyToken, checkRole(['admin', 'cashier']), async (req
         }
 
         // 3. Insertar el pedido
+        // Un pedido nuevo con items siempre está 'pending' para la cocina.
+        // La diferencia entre un pedido para llevar y una cuenta abierta es si 'paymentMethod' es nulo.
+        const status = 'pending';
         const order = await db.Order.create({
             customer_name: customerName,
             total,
             payment_method: paymentMethod,
-            user_id: userId,
+            status: status,
             notes
         }, { transaction: t });
 
@@ -312,7 +315,10 @@ app.post('/api/orders', verifyToken, checkRole(['admin', 'cashier']), async (req
             timestamp: new Date().toISOString() // Usamos la hora del servidor para mayor precisión
         };
 
-        io.emit('new_order', orderForKitchen);
+        // Solo notificar a la cocina si hay items que preparar (no al solo abrir una cuenta vacía)
+        if (items.length > 0) {
+            io.emit('new_order', orderForKitchen);
+        }
         res.status(201).json({ message: 'Pedido recibido', orderId: order.id });
 
     } catch (error) {
@@ -323,7 +329,7 @@ app.post('/api/orders', verifyToken, checkRole(['admin', 'cashier']), async (req
 });
 
 // Get all pending orders for the kitchen
-app.get('/api/orders/pending', verifyToken, checkRole(['admin', 'kitchen']), async (req, res) => {
+app.get('/api/orders/pending', verifyToken, checkRole(['admin', 'kitchen', 'cashier']), async (req, res) => {
     try {
         const pendingOrders = await db.Order.findAll({
             where: { status: 'pending' },
@@ -349,6 +355,108 @@ app.get('/api/orders/pending', verifyToken, checkRole(['admin', 'kitchen']), asy
     } catch (error) {
         console.error("Error al obtener órdenes pendientes:", error);
         res.status(500).send('Error interno del servidor');
+    }
+});
+
+app.put('/api/orders/:id', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
+    const { id } = req.params;
+    const { status, payment_method } = req.body;
+
+    try {
+        const order = await db.Order.findByPk(id);
+        if (!order) {
+            return res.status(404).json({ message: 'Pedido no encontrado.' });
+        }
+
+        // This route is specifically for paying an account
+        if (status === 'paid' && payment_method) {
+            await order.update({ status, payment_method });
+            res.status(200).json({ message: 'Cuenta pagada exitosamente.' });
+        } else {
+            return res.status(400).json({ message: 'Actualización no permitida. Use esta ruta solo para pagar cuentas.' });
+        }
+    } catch (error) {
+        console.error(`Error al actualizar el pedido ${id}:`, error);
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+// Get all open accounts (serving status)
+app.get('/api/accounts/open', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
+    try {
+        const openAccounts = await db.Order.findAll({
+            where: { 
+                // Una cuenta abierta es aquella que está 'sirviéndose' o 'pendiente' en cocina.
+                status: { [Op.in]: ['serving', 'pending'] } 
+            },
+            include: [{
+                model: db.OrderItem,
+                as: 'orderItems',
+                include: [{ model: db.Product, as: 'product' }]
+            }],
+            order: [['timestamp', 'ASC']]
+        });
+        res.json(openAccounts);
+    } catch (error) {
+        console.error("Error al obtener cuentas abiertas:", error);
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+// Add items to an existing order (account)
+app.post('/api/accounts/:orderId/items', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
+    const { orderId } = req.params;
+    const { items, notes } = req.body; // items is an array of { productId, name, quantity, price, sauces }
+
+    if (!items || items.length === 0) {
+        return res.status(400).json({ message: 'No se proporcionaron items para añadir.' });
+    }
+
+    const t = await db.sequelize.transaction();
+    try {
+        const order = await db.Order.findByPk(orderId, { transaction: t });
+        if (!order) {
+            await t.rollback();
+            return res.status(404).json({ message: 'Cuenta no encontrada.' });
+        }
+
+        const orderItemsData = items.map(item => ({
+            order_id: orderId,
+            product_id: item.productId,
+            quantity: item.quantity,
+            price_at_time: item.price,
+            sauces: JSON.stringify(item.sauces || [])
+        }));
+
+        await db.OrderItem.bulkCreate(orderItemsData, { transaction: t });
+
+        // Recalculate total by summing up all items for that order
+        const allOrderItems = await db.OrderItem.findAll({ where: { order_id: orderId }, transaction: t });
+        const newTotal = allOrderItems.reduce((sum, item) => sum + (item.quantity * parseFloat(item.price_at_time)), 0);
+
+        // Update total and notes, and set status to 'pending' to send it to the kitchen
+        await order.update({ total: newTotal, notes: notes, status: 'pending' }, { transaction: t });
+        
+        await t.commit(); // Commit transaction before sending notification
+
+        // After committing, fetch the full updated order to send to the kitchen
+        // Notify kitchen about the NEW items only, using a specific event.
+        const kitchenNotification = {
+            orderId: order.id,
+            customer_name: order.customer_name,
+            newItems: items.map(item => ({ // "items" comes from req.body
+                name: item.name,
+                quantity: item.quantity,
+                sauces: item.sauces || []
+            }))
+        };
+        io.emit('new_addition', kitchenNotification);
+
+        res.status(200).json({ message: 'Items añadidos y enviados a cocina.' });
+    } catch (error) {
+        await t.rollback();
+        console.error("Error al añadir items:", error);
+        res.status(500).send('Error al añadir items.');
     }
 });
 
@@ -967,6 +1075,10 @@ app.get('/manage-expenses.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'manage-expenses.html'));
 });
 
+app.get('/accounts.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'accounts.html'));
+});
+
 app.get('/login.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'login.html'));
 });
@@ -1029,9 +1141,15 @@ io.on('connection', (socket) => {
 
     socket.on('mark_order_ready', async (orderId) => {
         try {
-            // La acción está autenticada por el middleware del socket
-            await db.Order.update({ status: 'completed' }, { where: { id: orderId } });
-            io.emit('remove_order', orderId); // Notificar a todos los clientes para que eliminen la tarjeta
+            const order = await db.Order.findByPk(orderId);
+            if (order) {
+                // Si es una cuenta abierta (sin método de pago), pasa a 'serving'.
+                // Si fue un pedido pagado, pasa a 'completed'.
+                const newStatus = order.payment_method ? 'completed' : 'serving';
+                await order.update({ status: newStatus });
+                // Notificar a la cocina para que elimine la tarjeta de la vista.
+                io.emit('remove_order', orderId);
+            }
         } catch (error) {
             console.error(`Error al marcar la orden ${orderId} como lista:`, error);
         }

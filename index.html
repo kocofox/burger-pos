@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cangre Burger - Inicio</title>
+    <link href="/dist/output.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+    <div class="text-center mb-12">
+        <h1 class="text-5xl font-bold text-gray-800">Cangre Burger POS</h1>
+        <p class="text-xl text-gray-500 mt-2">Bienvenido, ¿qué deseas hacer?</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl w-full">
+        <!-- Tarjeta para Pedido para Llevar -->
+        <a href="/burger.html?mode=pickup" class="group block bg-white p-6 md:p-8 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 text-center">
+            <div class="flex justify-center items-center h-12 w-12 md:h-16 md:w-16 bg-amber-100 rounded-full mx-auto mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:h-8 md:w-8 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
+            </div>
+            <h2 class="text-xl md:text-2xl font-bold text-gray-800">Pedido para Llevar</h2>
+            <p class="text-gray-500 mt-1">Toma un pedido rápido que se paga al instante.</p>
+        </a>
+
+        <!-- Tarjeta para Atender en Salón -->
+        <a href="/burger.html?mode=salon" class="group block bg-white p-6 md:p-8 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 text-center">
+            <div class="flex justify-center items-center h-12 w-12 md:h-16 md:w-16 bg-blue-100 rounded-full mx-auto mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:h-8 md:w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 15 7 15 9c2 1 2.343 2.343 2.657 3.657z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 16.121A3 3 0 1012.001 12A3 3 0 009.879 16.121z" />
+                </svg>
+            </div>
+            <h2 class="text-xl md:text-2xl font-bold text-gray-800">Atender en Salón</h2>
+            <p class="text-gray-500 mt-1">Abre una nueva cuenta para un cliente en el local.</p>
+        </a>
+
+        <!-- Tarjeta para Ver Cuentas Abiertas -->
+        <a href="/accounts.html" class="group block bg-white p-6 md:p-8 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 text-center">
+            <div class="flex justify-center items-center h-12 w-12 md:h-16 md:w-16 bg-green-100 rounded-full mx-auto mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:h-8 md:w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+            </div>
+            <h2 class="text-xl md:text-2xl font-bold text-gray-800">Cuentas Abiertas</h2>
+            <p class="text-gray-500 mt-1">Gestiona las cuentas de los clientes que ya están consumiendo.</p>
+        </a>
+
+        <!-- Tarjeta para Ir al Dashboard -->
+        <a href="/dashboard" class="group block bg-white p-6 md:p-8 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 text-center">
+            <div class="flex justify-center items-center h-12 w-12 md:h-16 md:w-16 bg-gray-100 rounded-full mx-auto mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:h-8 md:w-8 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 00-2-2h-2a2 2 0 00-2 2v4" />
+                </svg>
+            </div>
+            <h2 class="text-xl md:text-2xl font-bold text-gray-800">Dashboard</h2>
+            <p class="text-gray-500 mt-1">Ver reportes, ventas y estado del día.</p>
+        </a>
+    </div>
+</body>
+</html>
