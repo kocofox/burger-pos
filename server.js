@@ -745,7 +745,7 @@ app.put('/api/recipes/:productId', verifyToken, checkRole(['admin']), async (req
     }
 });
 
-app.get('/api/dashboard/ingredient-stock-report', verifyToken, checkRole(['admin']), async (req, res) => {
+app.get('/api/dashboard/ingredient-stock-report', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     try {
         const ingredients = await db.Ingredient.findAll({
             attributes: ['name', 'stock'],
@@ -855,6 +855,78 @@ app.put('/api/profile/change-password', verifyToken, async (req, res) => {
     }
 });
 
+// --- Admin Management: Expenses (CRUD) ---
+app.get('/api/expenses', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
+    try {
+        const whereClause = {};
+        // Si el usuario es cajero, solo puede ver sus propios gastos.
+        if (req.user.role === 'cashier') {
+            whereClause.user_id = req.user.id;
+        }
+
+        const expenses = await db.Expense.findAll({
+            where: whereClause,
+            include: [{ model: db.User, as: 'user', attributes: ['username'] }],
+            order: [['expense_date', 'DESC']]
+        });
+        res.json(expenses);
+    } catch (error) {
+        console.error("Error al obtener los gastos:", error);
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+app.post('/api/expenses', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
+    const { description, quantity, unit, amount, category, expense_date } = req.body;
+    try {
+        // Si el admin crea un gasto, se aprueba automáticamente.
+        const status = req.user.role === 'admin' ? 'approved' : 'pending';
+
+        await db.Expense.create({
+            description,
+            quantity,
+            unit,
+            amount,
+            category,
+            expense_date,
+            status,
+            user_id: req.user.id
+        });
+        res.status(201).json({ message: 'Gasto registrado exitosamente.' });
+    } catch (error) {
+        console.error("Error al registrar el gasto:", error);
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+app.put('/api/expenses/:id', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { id } = req.params;
+    const { description, quantity, unit, amount, category, expense_date, status } = req.body;
+    try {
+        const [affectedRows] = await db.Expense.update(
+            { description, quantity, unit, amount, category, expense_date, status },
+            { where: { id } }
+        );
+        if (affectedRows === 0) return res.status(404).json({ message: 'Gasto no encontrado.' });
+        res.json({ message: 'Gasto actualizado exitosamente.' });
+    } catch (error) {
+        console.error("Error al actualizar el gasto:", error);
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+app.delete('/api/expenses/:id', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const affectedRows = await db.Expense.destroy({ where: { id } });
+        if (affectedRows === 0) return res.status(404).json({ message: 'Gasto no encontrado.' });
+        res.json({ message: 'Gasto eliminado exitosamente.' });
+    } catch (error) {
+        console.error("Error al eliminar el gasto:", error);
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
 // =================================================================
 // --- PAGE SERVING ROUTES ---
 // =================================================================
@@ -889,6 +961,10 @@ app.get('/manage-sauces.html', (req, res) => {
 
 app.get('/profile.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'profile.html'));
+});
+
+app.get('/manage-expenses.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'manage-expenses.html'));
 });
 
 app.get('/login.html', (req, res) => {

@@ -36,44 +36,47 @@
         }
     </style>
 </head>
-<body class="bg-gray-100 p-8">
+<body class="bg-gray-100 p-4 sm:p-8">
     <!-- Contenedor para notificaciones Toast -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2"></div>
-    <div class="relative max-w-4xl mx-auto">
-        <div class="absolute top-0 right-0 flex items-center space-x-2">
-            <a href="/profile.html" class="p-2 text-gray-500 hover:text-blue-600 transition-colors" title="Mi Perfil">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-            </a>
-            <button id="logout-button" class="p-2 text-red-500 hover:text-red-700 transition-colors" title="Cerrar Sesión">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-            </button>
-        </div>
-        <header class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-gray-800">Panel de Control</h1>
-            <p class="text-gray-500" id="dashboard-subtitle">Ventas y reportes del día</p>
-            <div class="mt-6 flex flex-col sm:flex-row justify-center items-center gap-4 ">
-                <div>
-                    <label for="date-picker" class="text-sm font-medium text-gray-700">Ver historial por fecha:</label>
+
+    <!-- Contenido Principal -->
+    <div id="main-content">
+        <header class="relative text-center mb-8">
+            <div class="absolute top-0 right-0">
+                <div id="actions-menu" class="relative">
+                    <button id="actions-menu-button" class="p-2 text-gray-600 hover:text-blue-600 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.096 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    </button>
+                    <div id="actions-dropdown" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl z-20">
+                        <div id="admin-menu-items" class="py-1">
+                            <!-- Los enlaces de admin se insertarán aquí -->
+                        </div>
+                        <div class="border-t border-gray-100"></div>
+                        <a href="/profile.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Mi Perfil</a>
+                        <a href="#" id="logout-button" class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100">Cerrar Sesión</a>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <h1 class="text-2xl lg:text-4xl font-bold text-gray-800">Panel de Control</h1>
+                <p class="text-gray-500" id="dashboard-subtitle">Ventas y reportes del día</p>
+            </div>
+        </header>
+
+        <main class="max-w-4xl mx-auto">
+            <!-- Controles de Fecha y Acciones -->
+            <div class="mb-8 p-4 bg-white rounded-lg shadow-md flex flex-col md:flex-row justify-center items-center gap-4">
+                <div class="flex-shrink-0">
+                    <label for="date-picker" class="text-sm font-medium text-gray-700">Ver por fecha:</label>
                     <input type="date" id="date-picker" class="p-2 border border-gray-300 rounded-lg">
                     <button id="view-today-btn" class="ml-2 px-4 py-2 bg-gray-200 text-sm font-medium text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">Ver Hoy</button>
                 </div>
                 <div id="action-buttons" class="flex gap-2 items-center h-10">
-                    <!-- Admin Buttons -->
-                    <a href="/manage-products.html" id="manage-products-link" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Gestionar Productos</a>
-                    <a href="/manage-recipes.html" id="manage-recipes-link" class="hidden bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Gestionar Recetas</a>
-                    <a href="/manage-ingredients.html" id="manage-ingredients-link" class="hidden bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Gestionar Insumos</a>
-                    <a href="/manage-sauces.html" id="manage-sauces-link" class="hidden bg-pink-600 hover:bg-pink-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Gestionar Cremas</a>
-                    <!-- Cashier Buttons -->
                     <button id="propose-closure-btn" class="hidden bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-lg">Proponer Cierre de Día</button>
                 </div>
             </div>
-        </header>
 
-        <main>
             <!-- Resumen General -->
             <section class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                 <div class="bg-white p-6 rounded-2xl shadow-lg">
@@ -113,7 +116,7 @@
                     </div>
                 </div>
                 <div id="product-report-list" class="space-y-2">
-                    <!-- El reporte de productos se cargará aquí -->
+                    <!-- El reporte de productos se cargará aquí. Ahora es responsive. -->
                 </div>
                 <div class="loading-overlay absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center hidden">
                     <p class="text-gray-600 font-semibold">Cargando...</p>
@@ -123,9 +126,7 @@
             <!-- Sección de Reporte por Método de Pago -->
             <section id="payment-report-section" class="relative bg-white p-6 rounded-2xl shadow-lg mt-8">
                 <h2 id="payment-report-title" class="text-2xl font-semibold text-gray-700 mb-4">Reporte por Método de Pago</h2>
-                <div id="payment-report-list" class="space-y-2">
-                    <!-- El reporte de pagos se cargará aquí -->
-                </div>
+                <div id="payment-report-list" class="space-y-2"></div>
                 <div class="loading-overlay absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center hidden">
                     <p class="text-gray-600 font-semibold">Cargando...</p>
                 </div>
@@ -134,9 +135,7 @@
             <!-- Sección de Reporte de Stock -->
             <section id="stock-report-section" class="relative bg-white p-6 rounded-2xl shadow-lg mt-8">
                 <h2 class="text-2xl font-semibold text-gray-700 mb-4">Reporte de Stock de Insumos</h2>
-                <div id="stock-report-list" class="space-y-2">
-                    <!-- El reporte de productos se cargará aquí -->
-                </div>
+                <div id="stock-report-list" class="space-y-2"></div>
             </section>
         </main>
     </div>
@@ -152,10 +151,7 @@
         let userRole = '';
 
         // Button and status elements
-        const manageProductsLink = document.getElementById('manage-products-link');
-        const manageRecipesLink = document.getElementById('manage-recipes-link');
-        const manageIngredientsLink = document.getElementById('manage-ingredients-link');
-        const manageSaucesLink = document.getElementById('manage-sauces-link');
+        const adminMenuItemsContainer = document.getElementById('admin-menu-items');
         const approveBtn = document.getElementById('approve-closure-btn');
         const forceBtn = document.getElementById('force-closure-btn');
         const regenerateBtn = document.getElementById('regenerate-report-btn');
@@ -229,37 +225,37 @@
                 `;
 
                 // Mostrar tabla completa
-                const tableHtml = `
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ingresos</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">`;
-                const tableRows = reportData.map(item => `
-                        <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.name}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.total_sold}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">S/. ${parseFloat(item.total_revenue).toFixed(2)}</td>
-                        </tr>`
+                const headerHtml = `
+                    <div class="hidden md:grid md:grid-cols-3 gap-4 px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <div>Producto</div>
+                        <div>Cantidad</div>
+                        <div>Ingresos</div>
+                    </div>
+                `;
+
+                const rowsHtml = reportData.map(item => `
+                    <div class="border-b border-gray-200 md:border-none">
+                        <div class="p-4 md:px-6 md:py-4 md:grid md:grid-cols-3 md:gap-4 items-center">
+                            <div class="flex justify-between md:block">
+                                <span class="text-sm text-gray-500 md:hidden">Producto:</span>
+                                <span class="text-sm font-medium text-gray-900">${item.name}</span>
+                            </div>
+                            <div class="flex justify-between md:block">
+                                <span class="text-sm text-gray-500 md:hidden">Cantidad:</span>
+                                <span class="text-sm text-gray-900">${item.total_sold}</span>
+                            </div>
+                            <div class="flex justify-between md:block">
+                                <span class="text-sm text-gray-500 md:hidden">Ingresos:</span>
+                                <span class="text-sm text-gray-900">S/. ${parseFloat(item.total_revenue).toFixed(2)}</span>
+                            </div>
+                        </div>
+                    </div>`
                 ).join('');
 
                 const totalItemsSold = reportData.reduce((sum, item) => sum + parseInt(item.total_sold), 0);
                 const totalRevenue = reportData.reduce((sum, item) => sum + parseFloat(item.total_revenue), 0);
 
-                const tableFooter = `
-                        </tbody>
-                        <tfoot class="bg-gray-100">
-                            <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">TOTALES</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">${totalItemsSold}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">S/. ${totalRevenue.toFixed(2)}</td>
-                            </tr>
-                        </tfoot></table>`;
-                reportContainer.innerHTML = tableHtml + tableRows + tableFooter;
+                reportContainer.innerHTML = headerHtml + rowsHtml;
             } catch (error) {
                 console.error('Error al cargar el reporte de productos:', error);
                 document.getElementById('product-report-list').innerHTML = '<p class="text-red-500">No se pudo cargar el reporte.</p>';
@@ -282,37 +278,34 @@
                     return;
                 }
 
-                const tableHtml = `
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Método de Pago</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nº Transacciones</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ingresos</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">`;
-                const tableRows = reportData.map(item => `
-                        <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.payment_method}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.transaction_count}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">S/. ${parseFloat(item.total_revenue).toFixed(2)}</td>
-                        </tr>`
+                const headerHtml = `
+                    <div class="hidden md:grid md:grid-cols-3 gap-4 px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <div>Método de Pago</div>
+                        <div>Nº Transacciones</div>
+                        <div>Ingresos</div>
+                    </div>
+                `;
+
+                const rowsHtml = reportData.map(item => `
+                    <div class="border-b border-gray-200 md:border-none">
+                        <div class="p-4 md:px-6 md:py-4 md:grid md:grid-cols-3 md:gap-4 items-center">
+                            <div class="flex justify-between md:block">
+                                <span class="text-sm text-gray-500 md:hidden">Método:</span>
+                                <span class="text-sm font-medium text-gray-900">${item.payment_method}</span>
+                            </div>
+                            <div class="flex justify-between md:block">
+                                <span class="text-sm text-gray-500 md:hidden">Transacciones:</span>
+                                <span class="text-sm text-gray-900">${item.transaction_count}</span>
+                            </div>
+                            <div class="flex justify-between md:block">
+                                <span class="text-sm text-gray-500 md:hidden">Ingresos:</span>
+                                <span class="text-sm text-gray-900">S/. ${parseFloat(item.total_revenue).toFixed(2)}</span>
+                            </div>
+                        </div>
+                    </div>`
                 ).join('');
 
-                const totalTransactions = reportData.reduce((sum, item) => sum + parseInt(item.transaction_count), 0);
-                const totalRevenue = reportData.reduce((sum, item) => sum + parseFloat(item.total_revenue), 0);
-
-                const tableFooter = `
-                        </tbody>
-                        <tfoot class="bg-gray-100">
-                            <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">TOTALES</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">${totalTransactions}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">S/. ${totalRevenue.toFixed(2)}</td>
-                            </tr>
-                        </tfoot></table>`;
-                reportContainer.innerHTML = tableHtml + tableRows + tableFooter;
+                reportContainer.innerHTML = headerHtml + rowsHtml;
             } catch (error) {
                 console.error('Error al cargar el reporte de pagos:', error);
                 document.getElementById('payment-report-list').innerHTML = '<p class="text-red-500">No se pudo cargar el reporte de pagos.</p>';
@@ -333,35 +326,61 @@
                     return;
                 }
 
-                const tableHtml = `
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Insumo</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">`;
-                const tableRows = reportData.map(item => `
-                        <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.name}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.stock}</td>
-                        </tr>`
+                const headerHtml = `
+                    <div class="hidden md:grid md:grid-cols-2 gap-4 px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <div>Insumo</div>
+                        <div>Stock</div>
+                    </div>
+                `;
+
+                const rowsHtml = reportData.map(item => `
+                    <div class="border-b border-gray-200 md:border-none">
+                        <div class="p-4 md:px-6 md:py-4 md:grid md:grid-cols-2 md:gap-4 items-center">
+                            <div class="flex justify-between md:block">
+                                <span class="text-sm text-gray-500 md:hidden">Insumo:</span>
+                                <span class="text-sm font-medium text-gray-900">${item.name}</span>
+                            </div>
+                            <div class="flex justify-between md:block">
+                                <span class="text-sm text-gray-500 md:hidden">Stock:</span>
+                                <span class="text-sm text-gray-900">${item.stock}</span>
+                            </div>
+                        </div>
+                    </div>`
                 ).join('');
 
-                reportContainer.innerHTML = tableHtml + tableRows + `</tbody></table>`;
+                reportContainer.innerHTML = headerHtml + rowsHtml;
             } catch (error) {
                 console.error('Error al cargar el reporte de stock:', error);
                 document.getElementById('stock-report-list').innerHTML = '<p class="text-red-500">No se pudo cargar el reporte de stock.</p>';
             }
         }
-        function checkAdminRole() {
+
+        function setupUIForRole() {
             if (!token) return;
             try {
                 const payload = JSON.parse(atob(token.split('.')[1]));
                 userRole = payload.role;
+
+                adminMenuItemsContainer.innerHTML = ''; // Limpiar por si acaso
+                if (userRole === 'admin') {
+                    const adminLinks = [
+                        { href: '/manage-products.html', text: 'Gestionar Productos' },
+                        { href: '/manage-recipes.html', text: 'Gestionar Recetas' },
+                        { href: '/manage-ingredients.html', text: 'Gestionar Insumos' },
+                        { href: '/manage-sauces.html', text: 'Gestionar Cremas' },
+                        { href: '/manage-expenses.html', text: 'Gestionar Gastos' }
+                    ];
+                    adminLinks.forEach(link => {
+                        adminMenuItemsContainer.innerHTML += `<a href="${link.href}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">${link.text}</a>`;
+                    });
+                    document.querySelector('.border-t').style.display = 'block';
+                }
+                if (userRole === 'cashier') {
+                    adminMenuItemsContainer.innerHTML += `<a href="/manage-expenses.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Registrar Gasto</a>`;
+                }
             } catch (e) {
                 console.error('Error al decodificar token:', e);
+                adminMenuItemsContainer.innerHTML = '';
             }
         }
 
@@ -400,7 +419,7 @@
 
         async function updateDashboardActions(date) {
             // Hide all buttons and statuses first
-            [manageProductsLink, manageRecipesLink, manageIngredientsLink, manageSaucesLink, approveBtn, forceBtn, regenerateBtn, proposeBtn, statusPending, statusClosed].forEach(el => el.classList.add('hidden'));
+            [approveBtn, forceBtn, regenerateBtn, proposeBtn, statusPending, statusClosed].forEach(el => el.classList.add('hidden'));
 
             const today = new Date().toISOString().split('T')[0];
             const selectedDate = date || today;
@@ -414,10 +433,6 @@
                 const { status } = await response.json();
 
                 if (userRole === 'admin') {
-                    manageProductsLink.classList.remove('hidden');
-                    manageRecipesLink.classList.remove('hidden');
-                    manageIngredientsLink.classList.remove('hidden');
-                    manageSaucesLink.classList.remove('hidden');
                     if (status === 'pending_closure') {
                         approveBtn.classList.remove('hidden');
                     } else if (status === 'open') {
@@ -537,23 +552,29 @@
             // Por defecto, el dashboard ya carga los datos del día porque el date picker está vacío.
             // Esta es la lógica correcta y cumple con el requisito.
 
-            checkAdminRole();
+            setupUIForRole(); // Configura la UI basada en el rol del usuario
             datePicker.addEventListener('change', updateAllData);
 
-            document.getElementById('logout-button').addEventListener('click', () => {
+            const logoutButton = document.getElementById('logout-button');
+            logoutButton.addEventListener('click', (e) => {
+                e.preventDefault();
                 localStorage.removeItem('cangre_burger_token');
                 window.location.href = '/login.html';
             });
             
-            proposeBtn.addEventListener('click', proposeClosure);
-            approveBtn.addEventListener('click', generateReport);
-            forceBtn.addEventListener('click', generateReport);
-            regenerateBtn.addEventListener('click', regenerateReport);
-            viewTodayBtn.addEventListener('click', () => {
-                datePicker.value = ''; // Limpiar el selector de fecha dispara el comportamiento por defecto
-                updateAllData();
+            // Lógica para el menú de acciones
+            const actionsMenuButton = document.getElementById('actions-menu-button');
+            const actionsDropdown = document.getElementById('actions-dropdown');
+            actionsMenuButton.addEventListener('click', () => {
+                actionsDropdown.classList.toggle('hidden');
             });
-
+            // Ocultar el menú si se hace clic fuera
+            window.addEventListener('click', (e) => {
+                if (!actionsMenuButton.contains(e.target)) {
+                    actionsDropdown.classList.add('hidden');
+                }
+            });
+            
             loadStockReport();
             updateAllData(); // Carga inicial para el día de hoy
         });
