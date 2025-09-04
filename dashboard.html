@@ -78,7 +78,7 @@
             </div>
 
             <!-- Resumen General -->
-            <section class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            <section id="summary-section" class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                 <div class="bg-white p-6 rounded-2xl shadow-lg">
                     <h2 class="text-2xl font-semibold text-gray-700 mb-4">Ingresos Totales</h2>
                     <div class="text-5xl font-bold text-amber-600" id="total-sales">
@@ -375,6 +375,19 @@
                     });
                     document.querySelector('.border-t').style.display = 'block';
                 }
+                if (userRole === 'kitchen' || userRole === 'admin') {
+                    adminMenuItemsContainer.innerHTML += `<a href="/kitchen" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Ir a Cocina</a>`;
+                }
+                if (userRole === 'cashier') {
+                    adminMenuItemsContainer.innerHTML += `<a href="/" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Ir a Comanda</a>`;
+                }
+
+                // Ocultar secciones financieras para el rol de cocina
+                if (userRole === 'kitchen') {
+                    document.getElementById('summary-section').style.display = 'none';
+                    document.getElementById('payment-report-section').style.display = 'none';
+                }
+
                 if (userRole === 'cashier') {
                     adminMenuItemsContainer.innerHTML += `<a href="/manage-expenses.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Registrar Gasto</a>`;
                 }
@@ -388,16 +401,19 @@
             const selectedDate = datePicker.value;
             const loadingOverlays = document.querySelectorAll('.loading-overlay');
             loadingOverlays.forEach(overlay => overlay.classList.remove('hidden'));
-            
-            // Run data loading in parallel
-            await Promise.all([
-                loadDashboardData(selectedDate),
+
+            const dataPromises = [
                 loadProductReport(selectedDate),
-                loadPaymentReport(selectedDate),
                 loadStockReport(selectedDate),
                 updateDashboardActions(selectedDate)
-            ]);
-            
+            ];
+
+            if (userRole === 'admin' || userRole === 'cashier') {
+                dataPromises.push(loadDashboardData(selectedDate), loadPaymentReport(selectedDate));
+            }
+
+            await Promise.all(dataPromises);
+
             loadingOverlays.forEach(overlay => overlay.classList.add('hidden'));
 
             const productReportTitle = document.getElementById('product-report-title');
@@ -575,7 +591,6 @@
                 }
             });
             
-            loadStockReport();
             updateAllData(); // Carga inicial para el día de hoy
         });
     </script>

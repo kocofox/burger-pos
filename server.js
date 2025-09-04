@@ -374,7 +374,7 @@ function buildReportWhereClause(user, date, tableAlias = '') {
 }
 
 // Obtener datos para el dashboard (ventas y pedidos del día)
-app.get('/api/dashboard/data', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
+app.get('/api/dashboard/data', verifyToken, checkRole(['admin', 'cashier', 'kitchen']), async (req, res) => {
     const { date } = req.query;
     try {
         const whereClause = buildReportWhereClause(req.user, date).where;
@@ -396,7 +396,7 @@ app.get('/api/dashboard/data', verifyToken, checkRole(['admin', 'cashier']), asy
     }
 });
 
-app.get('/api/dashboard/product-report', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
+app.get('/api/dashboard/product-report', verifyToken, checkRole(['admin', 'cashier', 'kitchen']), async (req, res) => {
     const { date } = req.query;
     try {
         const whereClause = buildReportWhereClause(req.user, date).where;
@@ -422,7 +422,7 @@ app.get('/api/dashboard/product-report', verifyToken, checkRole(['admin', 'cashi
 });
 
 // Obtener reporte por método de pago
-app.get('/api/dashboard/payment-report', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
+app.get('/api/dashboard/payment-report', verifyToken, checkRole(['admin', 'cashier', 'kitchen']), async (req, res) => {
     const { date } = req.query;
     try {
         const whereClause = buildReportWhereClause(req.user, date).where;
@@ -445,7 +445,7 @@ app.get('/api/dashboard/payment-report', verifyToken, checkRole(['admin', 'cashi
 });
 
 // Get closure status for a given date
-app.get('/api/reports/status', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
+app.get('/api/reports/status', verifyToken, checkRole(['admin', 'cashier', 'kitchen']), async (req, res) => {
     const { date } = req.query;
     const targetDate = date || new Date().toISOString().split('T')[0];
 
@@ -745,7 +745,7 @@ app.put('/api/recipes/:productId', verifyToken, checkRole(['admin']), async (req
     }
 });
 
-app.get('/api/dashboard/ingredient-stock-report', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
+app.get('/api/dashboard/ingredient-stock-report', verifyToken, checkRole(['admin', 'cashier', 'kitchen']), async (req, res) => {
     try {
         const ingredients = await db.Ingredient.findAll({
             attributes: ['name', 'stock'],
@@ -780,7 +780,7 @@ app.post('/api/auth/login', async (req, res) => {
         const token = jwt.sign(
             { id: user.id, username: user.username, role: user.role.name },
             process.env.JWT_SECRET,
-            { expiresIn: '8h' }
+            { expiresIn: '6h' } // La sesión ahora expira en 6 horas
         );
 
         res.json({ message: 'Login exitoso', token, role: user.role.name });

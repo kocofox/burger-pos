@@ -56,15 +56,9 @@
                 }
 
                 localStorage.setItem('cangre_burger_token', data.token);
-                
-                // Redirigir basado en el rol del usuario
-                if (data.role === 'admin') {
-                    window.location.href = '/dashboard';
-                } else if (data.role === 'cashier') {
-                    window.location.href = '/'; // La página de pedidos es la principal para el cajero
-                } else {
-                    window.location.href = '/kitchen'; // Por defecto para otros roles como cocina
-                }
+
+                // Redirigir a todos los usuarios al dashboard después del login.
+                window.location.href = '/dashboard';
 
             } catch (error) {
                 errorMessage.textContent = error.message;

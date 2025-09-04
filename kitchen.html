@@ -42,6 +42,14 @@
 </head>
 
 <body class="bg-gray-800 text-white p-4">
+    <script>
+        // Mover la verificación del token al inicio del body para una redirección inmediata.
+        const token = localStorage.getItem('cangre_burger_token');
+        if (!token) {
+            window.location.href = '/login.html';
+        }
+    </script>
+    <a href="/dashboard" class="absolute top-4 right-4 text-blue-300 hover:text-white hover:underline text-sm">&larr; Volver al Dashboard</a>
     <header class="text-center mb-6">
         <h1 class="text-4xl font-bold text-amber-400">Órdenes de Cocina</h1>
         <div id="status-indicator" class="mt-2 text-sm font-semibold bg-red-500 text-white py-1 px-3 rounded-full inline-block cursor-pointer">Desconectado (Click para activar sonido)</div>
@@ -55,12 +63,6 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        // --- Setup & Authentication ---
-        const token = localStorage.getItem('cangre_burger_token');
-        if (!token) {
-            window.location.href = '/login.html';
-        }
-
         const socket = io({
             auth: {
                 token: token
@@ -124,10 +126,8 @@
                 });
                 if (!response.ok) {
                     // Si el token es inválido o el rol no es correcto, el servidor devolverá un error.
-                    if (response.status === 401 || response.status === 403) {
-                        ordersContainer.innerHTML = `<p class="text-red-500 col-span-full text-center">Acceso denegado. Por favor, inicie sesión con una cuenta de cocina o administrador.</p>`;
-                        // Desconectar el socket para no recibir órdenes si no se tiene permiso.
-                        socket.disconnect();
+                    if (response.status === 401 || response.status === 403) { // Unauthorized or Forbidden
+                        window.location.href = '/login.html';
                         return;
                     }
                     throw new Error('No se pudieron cargar las órdenes pendientes.');
@@ -145,7 +145,8 @@
         socket.on('connect_error', (err) => {
             // Manejar errores de autenticación del socket
             console.error('Error de conexión de Socket:', err.message);
-            ordersContainer.innerHTML = `<p class="text-red-500 col-span-full text-center">Error de autenticación. No se pueden recibir órdenes en tiempo real. Por favor, inicie sesión de nuevo.</p>`;
+            statusIndicator.textContent = 'Error de Conexión. Recargue la página.';
+            statusIndicator.classList.add('bg-red-500');
         });
 
         socket.on('new_order', (order) => {
