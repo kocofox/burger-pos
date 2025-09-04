@@ -646,6 +646,21 @@ app.post('/api/reports/regenerate', verifyToken, checkRole(['admin']), async (re
 
 // --- Rutas para Gestión de Productos (Admin) ---
 
+app.get('/api/products', verifyToken, checkRole(['admin']), async (req, res) => {
+    try {
+        const products = await db.Product.findAll({
+            include: [{ model: db.Category, as: 'category' }],
+            order: [
+                [{ model: db.Category, as: 'category' }, 'display_order', 'ASC'],
+                ['name', 'ASC']
+            ]
+        });
+        res.json(products);
+    } catch (error) {
+        res.status(500).json({ message: 'Error al obtener los productos', error: error.message });
+    }
+});
+
 app.post('/api/products', verifyToken, checkRole(['admin']), async (req, res) => {
     const { name, price, category_id, stock, stock_type } = req.body;
     try {

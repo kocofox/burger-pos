@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestionar Productos - Cangre Burger</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="/dist/output.css" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <style>
         body { 
@@ -118,7 +118,7 @@
         let categories = [];
 
         async function loadProducts() {
-            const response = await fetch('/api/menu'); // Reutilizamos la ruta del menú
+            const response = await fetch('/api/products', { headers: { 'Authorization': `Bearer ${token}` } }); // Usar la nueva ruta de admin
             const products = await response.json();
             const tableBody = document.getElementById('products-table-body');
             tableBody.innerHTML = '';
@@ -127,10 +127,10 @@
                     <tr>
                         <td class="px-4 py-3 text-sm text-gray-900">${p.name}</td>
                         <td class="px-4 py-3 text-sm text-gray-500">S/. ${parseFloat(p.price).toFixed(2)}</td>
-                        <td class="px-4 py-3 text-sm text-gray-500">${p.category.display_name || p.category}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">${p.category ? p.category.display_name : 'N/A'}</td>
                         <td class="px-4 py-3 text-sm text-gray-500">${p.stock}</td>
                         <td class="px-4 py-3 text-sm font-medium space-x-2">
-                            <button onclick="editProduct(${p.id}, '${p.name}', ${p.price}, ${p.category_id}, ${p.stock}, '${p.stock_type}')" class="text-indigo-600 hover:text-indigo-900">Editar</button>
+                            <button onclick='editProduct(${JSON.stringify(p)})' class="text-indigo-600 hover:text-indigo-900">Editar</button>
                             <button onclick="deleteProduct(${p.id})" class="text-red-600 hover:text-red-900">Eliminar</button>
                         </td>
                     </tr>   
@@ -154,16 +154,26 @@
             }
         }
 
-        function editProduct(id, name, price, categoryId, stock) {
+        function editProduct(product) {
             document.getElementById('form-title').innerText = 'Editar Producto';
-            document.getElementById('product-id').value = id;
-            document.getElementById('product-name').value = name;
-            document.getElementById('product-price').value = price;
-            document.getElementById('product-stock').value = stock;
-            
+            document.getElementById('product-id').value = product.id;
+            document.getElementById('product-name').value = product.name;
+            document.getElementById('product-price').value = product.price;
+            document.getElementById('product-category').value = product.category_id;
+            document.getElementById('product-stock-type').value = product.stock_type;
 
+            const stockInput = document.getElementById('product-stock');
+            const stockLabel = document.querySelector('label[for="product-stock"]');
 
-            document.getElementById('product-category').value = categoryId;
+            if (product.stock_type === 'COMPOUND') {
+                stockInput.value = product.stock; // Muestra el stock calculado
+                stockInput.disabled = true;
+                stockLabel.innerText = 'Stock (Calculado)';
+            } else {
+                stockInput.value = product.stock;
+                stockInput.disabled = false;
+                stockLabel.innerText = 'Stock';
+            }
             document.getElementById('cancel-edit-btn').classList.remove('hidden');
         }
 
