@@ -439,18 +439,29 @@ app.post('/api/accounts/:orderId/items', verifyToken, checkRole(['admin', 'cashi
         
         await t.commit(); // Commit transaction before sending notification
 
-        // After committing, fetch the full updated order to send to the kitchen
-        // Notify kitchen about the NEW items only, using a specific event.
+        // After committing, fetch the full updated order to send to the kitchen as a new order card.
+        const updatedOrderForKitchen = await db.Order.findByPk(orderId, {
+            include: [{
+                model: db.OrderItem,
+                as: 'orderItems',
+                include: [{ model: db.Product, as: 'product', attributes: ['id', 'name'] }] // Asegurarse de incluir el ID del producto
+            }]
+        });
+
         const kitchenNotification = {
-            orderId: order.id,
-            customer_name: order.customer_name,
-            newItems: items.map(item => ({ // "items" comes from req.body
-                name: item.name,
-                quantity: item.quantity,
-                sauces: item.sauces || []
-            }))
+            ...updatedOrderForKitchen.toJSON(),
+            items: updatedOrderForKitchen.orderItems.map(item => ({
+                // Aquí estaba el error: el id del item debe ser el del producto.
+                // El objeto 'item' es un OrderItem, por lo que accedemos a 'item.product.id'
+                id: item.product.id, 
+                name: item.product.name, 
+                quantity: item.quantity, 
+                sauces: JSON.parse(item.sauces || '[]')
+            })),
+            is_addition: true, // Flag to indicate this is an addition
+            newItemsIds: items.map(item => item.productId) // Array con los IDs de los productos nuevos
         };
-        io.emit('new_addition', kitchenNotification);
+        io.emit('new_order', kitchenNotification);
 
         res.status(200).json({ message: 'Items añadidos y enviados a cocina.' });
     } catch (error) {
@@ -597,18 +608,34 @@ async function getReportData(date) {
     const totalSales = await db.Order.sum('total', { where }) || 0;
     const productReport = await db.OrderItem.findAll({
         attributes: [[db.sequelize.col('product.name'), 'name'], [db.sequelize.fn('SUM', db.sequelize.col('quantity')), 'total_sold'], [db.sequelize.fn('SUM', db.sequelize.literal('quantity * price_at_time')), 'total_revenue']],
-        include: [{ model: db.Product, as: 'product', attributes: [] }, { model: db.Order, as: 'order', attributes: [], where }],
+        include: [{
+            model: db.Product, as: 'product', attributes: []
+        }, {
+            model: db.Order, as: 'order', attributes: [], where: where
+        }],
         group: ['product.id', 'product.name'], order: [[db.sequelize.fn('SUM', db.sequelize.col('quantity')), 'DESC']]
     });
     const paymentReport = await db.Order.findAll({
         attributes: ['payment_method', [db.sequelize.fn('COUNT', db.sequelize.col('id')), 'transaction_count'], [db.sequelize.fn('SUM', db.sequelize.col('total')), 'total_revenue']],
-        where: { ...where, payment_method: { [Op.ne]: null } }, group: ['payment_method'], order: [[db.sequelize.fn('SUM', db.sequelize.col('total')), 'DESC']]
+        where: {
+            ...where, // Aplica el filtro de fecha
+            payment_method: { [Op.ne]: null } // Y también asegura que el método de pago no sea nulo
+        }, group: ['payment_method'], order: [[db.sequelize.fn('SUM', db.sequelize.col('total')), 'DESC']]
     });
-    return { totalSales, productReport, paymentReport, targetDateStr };
+    const expensesReport = await db.Expense.findAll({
+        where: {
+            expense_date: targetDateStr,
+            status: 'approved'
+        }
+    });
+    const ingredientsReport = await db.Ingredient.findAll({
+        order: [['stock', 'ASC']]
+    });
+    return { totalSales, productReport, paymentReport, expensesReport, ingredientsReport, targetDateStr };
 }
 
 function generatePdfReport(res, data, user) {
-    const { totalSales, productReport, paymentReport, targetDateStr } = data;
+    const { totalSales, productReport, paymentReport, expensesReport, ingredientsReport, targetDateStr } = data;
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
 
     const formattedDate = new Date(targetDateStr + 'T12:00:00').toLocaleDateString('es-PE', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -620,24 +647,31 @@ function generatePdfReport(res, data, user) {
 
     // --- Header ---
     doc.fillColor('#444444')
-        .fontSize(20).font('Helvetica-Bold').text('Cangre Burger', 40, 45)
-        .fontSize(10).font('Helvetica').text('Reporte de Ventas', 200, 50, { align: 'right' })
-        .text(`Fecha: ${formattedDate}`, 200, 65, { align: 'right' })
+        .fontSize(20).font('Helvetica-Bold').text('Resumen de Operaciones', { align: 'center' })
+        .fontSize(12).font('Helvetica').text(`Cangre Burger - ${formattedDate}`, { align: 'center' })
         .moveDown();
-    doc.strokeColor("#aaaaaa").lineWidth(1).moveTo(40, 90).lineTo(555, 90).stroke();
-
-    doc.y = 110; // Start position for content
+    doc.moveDown();
 
     // --- Summary Section ---
-    doc.fontSize(16).fillColor('black').font('Helvetica-Bold').text('Resumen General', { underline: true });
-    doc.moveDown(0.5);
-    doc.font('Helvetica').fontSize(12);
-    doc.text(`Ingresos Totales: S/. ${totalSales.toFixed(2)}`);
-    if (productReport.length > 0) {
-        doc.text(`Producto Más Vendido: ${productReport[0].name} (${productReport[0].total_sold} unidades)`);
-    } else {
-        doc.text('No se vendieron productos en esta fecha.');
-    }
+    const totalExpenses = expensesReport.reduce((sum, expense) => sum + parseFloat(expense.amount), 0);
+    const netProfit = totalSales - totalExpenses;
+
+    const summaryY = doc.y;
+    doc.strokeColor('#e5e7eb').lineWidth(1).roundedRect(50, summaryY, 500, 80, 5).stroke();
+    
+    doc.font('Helvetica').fontSize(11).fillColor('#374151');
+    doc.text('(+) Ingresos Brutos (Ventas):', 70, summaryY + 15);
+    doc.text('(-) Gastos del Día:', 70, summaryY + 35);
+    
+    doc.font('Helvetica-Bold');
+    doc.text(`S/. ${totalSales.toFixed(2)}`, 350, summaryY + 15, { width: 180, align: 'right' });
+    doc.text(`S/. ${totalExpenses.toFixed(2)}`, 350, summaryY + 35, { width: 180, align: 'right' });
+
+    doc.strokeColor('#374151').lineWidth(0.5).moveTo(70, summaryY + 55).lineTo(530, summaryY + 55).stroke();
+
+    doc.font('Helvetica-Bold').fontSize(12);
+    doc.text('(=) Utilidad Neta:', 70, summaryY + 62);
+    doc.text(`S/. ${netProfit.toFixed(2)}`, 350, summaryY + 62, { width: 180, align: 'right' });
     doc.moveDown(2);
 
     // --- Product Sales Table ---
@@ -656,20 +690,20 @@ function generatePdfReport(res, data, user) {
     doc.font('Helvetica').fontSize(9);
     productReport.forEach(item => {
         doc.moveDown(0.5);
-        const y = doc.y;
-        const pricePerUnit = item.total_sold > 0 ? item.total_revenue / item.total_sold : 0;
-        doc.text(item.name, 50, y, { width: 250 });
-        doc.text(item.total_sold, 300, y, { width: 50, align: 'right' });
-        doc.text(`S/. ${pricePerUnit.toFixed(2)}`, 370, y, { width: 70, align: 'right' });
-        doc.text(`S/. ${parseFloat(item.total_revenue).toFixed(2)}`, 460, y, { width: 80, align: 'right' });
+        const rowY = doc.y;
+        const pricePerUnit = parseInt(item.get('total_sold')) > 0 ? parseFloat(item.get('total_revenue')) / parseInt(item.get('total_sold')) : 0;
+        doc.text(item.get('name'), 50, rowY, { width: 250 });
+        doc.text(item.get('total_sold'), 300, rowY, { width: 50, align: 'right' });
+        doc.text(`S/. ${pricePerUnit.toFixed(2)}`, 370, rowY, { width: 70, align: 'right' });
+        doc.text(`S/. ${parseFloat(item.get('total_revenue')).toFixed(2)}`, 460, rowY, { width: 80, align: 'right' });
     });
 
     doc.moveDown(0.5);
-    doc.strokeColor("#cccccc").lineWidth(0.5).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+    doc.strokeColor("#aaaaaa").lineWidth(0.5).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
     doc.moveDown(0.5);
     doc.font('Helvetica-Bold');
-    const totalProducts = productReport.reduce((sum, item) => sum + parseInt(item.total_sold), 0);
-    const totalProductRevenue = productReport.reduce((sum, item) => sum + parseFloat(item.total_revenue), 0);
+    const totalProducts = productReport.reduce((sum, item) => sum + parseInt(item.dataValues.total_sold), 0);
+    const totalProductRevenue = productReport.reduce((sum, item) => sum + parseFloat(item.dataValues.total_revenue), 0);
     doc.text('TOTAL', 50, doc.y);
     doc.text(totalProducts, 300, doc.y, { width: 50, align: 'right' });
     doc.text(`S/. ${totalProductRevenue.toFixed(2)}`, 460, doc.y, { width: 80, align: 'right' });
@@ -690,21 +724,74 @@ function generatePdfReport(res, data, user) {
     doc.font('Helvetica').fontSize(9);
     paymentReport.forEach(item => {
         doc.moveDown(0.5);
-        const y = doc.y;
-        doc.text(item.payment_method, 50, y);
-        doc.text(item.transaction_count, 370, y, { width: 70, align: 'right' });
-        doc.text(`S/. ${parseFloat(item.total_revenue).toFixed(2)}`, 460, y, { width: 80, align: 'right' });
+        const rowY = doc.y;
+        doc.text(item.get('payment_method'), 50, rowY);
+        doc.text(item.get('transaction_count').toString(), 370, rowY, { width: 70, align: 'right' });
+        doc.text(`S/. ${parseFloat(item.get('total_revenue')).toFixed(2)}`, 460, rowY, { width: 80, align: 'right' });
     });
 
     doc.moveDown(0.5);
-    doc.strokeColor("#cccccc").lineWidth(0.5).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+    doc.strokeColor("#aaaaaa").lineWidth(0.5).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
     doc.moveDown(0.5);
     doc.font('Helvetica-Bold');
-    const totalTransactions = paymentReport.reduce((sum, item) => sum + item.transaction_count, 0);
-    const totalPaymentRevenue = paymentReport.reduce((sum, item) => sum + parseFloat(item.total_revenue), 0);
+    const totalTransactions = paymentReport.reduce((sum, item) => sum + parseInt(item.dataValues.transaction_count), 0);
+    const totalPaymentRevenue = paymentReport.reduce((sum, item) => sum + parseFloat(item.dataValues.total_revenue), 0);
     doc.text('TOTAL', 50, doc.y);
     doc.text(totalTransactions, 370, doc.y, { width: 70, align: 'right' });
     doc.text(`S/. ${totalPaymentRevenue.toFixed(2)}`, 460, doc.y, { width: 80, align: 'right' });
+    doc.moveDown(2);
+
+    // --- Expenses Table ---
+    if (expensesReport.length > 0) {
+        doc.fontSize(16).font('Helvetica-Bold').text('Gastos Aprobados del Día', { underline: true });
+        doc.moveDown();
+
+        const expensesTableTop = doc.y;
+        doc.font('Helvetica-Bold').fontSize(10);
+        doc.text('Descripción', 50, expensesTableTop);
+        doc.text('Categoría', 300, expensesTableTop, { width: 140, align: 'right' });
+        doc.text('Monto', 460, expensesTableTop, { width: 80, align: 'right' });
+        doc.moveDown(0.5);
+        doc.strokeColor("#cccccc").lineWidth(0.5).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+
+        doc.font('Helvetica').fontSize(9);
+        expensesReport.forEach(expense => {
+            doc.moveDown(0.5);
+            const rowY = doc.y;
+            doc.text(expense.description, 50, rowY, { width: 250 });
+            doc.text(expense.category || 'N/A', 300, rowY, { width: 140, align: 'right' });
+            doc.text(`S/. ${parseFloat(expense.amount).toFixed(2)}`, 460, rowY, { width: 80, align: 'right' });
+        });
+    }
+
+    // --- Ingredients Stock Table ---
+    if (ingredientsReport.length > 0) {
+        doc.addPage(); // Add a new page for the stock report to keep things clean
+        doc.fontSize(16).font('Helvetica-Bold').text('Estado de Stock de Insumos', 40, 45, { underline: true });
+        doc.moveDown();
+
+        const stockTableTop = doc.y;
+        doc.font('Helvetica-Bold').fontSize(10);
+        doc.text('Insumo', 50, stockTableTop);
+        doc.text('Stock Actual', 460, stockTableTop, { width: 80, align: 'right' });
+        doc.moveDown(0.5);
+        doc.strokeColor("#cccccc").lineWidth(0.5).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+
+        doc.font('Helvetica').fontSize(9);
+        ingredientsReport.forEach(ingredient => {
+            doc.moveDown(0.5);
+            const rowY = doc.y;
+            let stockColor = 'black';
+            if (ingredient.stock <= 5) {
+                stockColor = '#dc2626'; // red-600
+            } else if (ingredient.stock <= 10) {
+                stockColor = '#f97316'; // orange-500
+            }
+            
+            doc.fillColor(stockColor).text(ingredient.name, 50, rowY, { width: 400 });
+            doc.fillColor(stockColor).text(ingredient.stock, 460, rowY, { width: 80, align: 'right' });
+        });
+    }
 
     // --- Footer ---
     doc.fontSize(8).fillColor('gray')
@@ -738,6 +825,26 @@ app.post('/api/reports/approve-closure', verifyToken, checkRole(['admin']), asyn
     }
 });
 
+// Force closure and generate PDF report (for admins, when no proposal exists)
+app.post('/api/reports/force-closure', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { date } = req.body;
+    const { id: adminId } = req.user;
+    const targetDateStr = date || new Date().toISOString().split('T')[0];
+
+    try {
+        await db.DailyClosure.upsert({
+            closure_date: targetDateStr,
+            status: 'closed',
+            closed_by_user_id: adminId,
+            closed_at: new Date()
+        });
+        const reportData = await getReportData(date);
+        generatePdfReport(res, reportData, req.user);
+    } catch (error) {
+        res.status(500).send('Error interno al forzar el cierre');
+    }
+});
+
 // Regenerate PDF report without changing status
 app.post('/api/reports/regenerate', verifyToken, checkRole(['admin']), async (req, res) => {
     const { date } = req.body;
@@ -749,6 +856,25 @@ app.post('/api/reports/regenerate', verifyToken, checkRole(['admin']), async (re
     } catch (error) {
         console.error("Error al regenerar el reporte PDF:", error);
         res.status(500).send('Error interno al regenerar el reporte');
+    }
+});
+
+// Reopen a closed day (for admins)
+app.post('/api/reports/reopen', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { date } = req.body;
+    const targetDateStr = date || new Date().toISOString().split('T')[0];
+
+    try {
+        const closure = await db.DailyClosure.findByPk(targetDateStr);
+        if (closure && closure.status === 'closed') {
+            await closure.update({ status: 'open' });
+            res.status(200).json({ message: 'El día ha sido reabierto exitosamente.' });
+        } else {
+            res.status(400).json({ message: 'El día no está cerrado o no se encontró.' });
+        }
+    } catch (error) {
+        console.error("Error al reabrir el día:", error);
+        res.status(500).send('Error interno al reabrir el día');
     }
 });
 

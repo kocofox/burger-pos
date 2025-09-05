@@ -72,17 +72,15 @@
                     <input type="date" id="date-picker" class="p-2 border border-gray-300 rounded-lg">
                     <button id="view-today-btn" class="ml-2 px-4 py-2 bg-gray-200 text-sm font-medium text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">Ver Hoy</button>
                 </div>
-                <div id="action-buttons" class="flex gap-2 items-center h-10">
-                    <button id="propose-closure-btn" class="hidden bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-lg">Proponer Cierre de Día</button>
-                </div>
             </div>
 
             <!-- Resumen General -->
-            <section id="summary-section" class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            <section id="summary-section" class="hidden grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                 <div class="bg-white p-6 rounded-2xl shadow-lg">
                     <h2 class="text-2xl font-semibold text-gray-700 mb-4">Ingresos Totales</h2>
-                    <div class="text-5xl font-bold text-amber-600" id="total-sales">
-                        Cargando...
+                    <div class="relative">
+                        <div class="text-5xl font-bold text-amber-600" id="total-sales">S/. 0.00</div>
+                        <div class="loading-overlay absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center hidden"><p class="text-gray-600 font-semibold">Cargando...</p></div>
                     </div>
                 </div>
                 <div class="bg-white p-6 rounded-2xl shadow-lg">
@@ -93,26 +91,27 @@
                 </div>
             </section>
 
-            <!-- Sección de Pedidos del Día -->
-            <section class="bg-white p-6 rounded-2xl shadow-lg">
-                <h2 id="orders-list-title" class="text-2xl font-semibold text-gray-700 mb-4">Pedidos</h2>
-                <div id="orders-list" class="space-y-4 max-h-96 overflow-y-auto">
-                    <!-- Lista de pedidos se cargará aquí -->
-                </div>
-            </section>
-
             <!-- Sección de Reporte de Productos -->
-            <section id="product-report-section" class="relative bg-white p-6 rounded-2xl shadow-lg mt-8">
+            <section id="product-report-section" class="hidden relative bg-white p-6 rounded-2xl shadow-lg mt-8">
                 <div class="flex justify-between items-center mb-4">
                     <h2 id="product-report-title" class="text-2xl font-semibold text-gray-700">Reporte de Productos Vendidos Hoy</h2>
                     <div id="report-action-buttons" class="flex gap-2 items-center h-10">
+                        <!-- Cashier Button -->
+                        <button id="propose-closure-btn" class="hidden bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-lg">Proponer Cierre de Día</button>
                         <!-- Admin Closure Buttons -->
                         <button id="approve-closure-btn" class="hidden bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Aprobar Cierre y Reporte</button>
                         <button id="force-closure-btn" class="hidden bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Forzar Cierre y Reporte</button>
                         <button id="regenerate-report-btn" class="hidden bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Regenerar Reporte</button>
+                        <button id="reopen-day-btn" class="hidden bg-yellow-500 hover:bg-yellow-600 text-gray-800 font-bold py-2 px-4 rounded-lg">Reabrir Día</button>
                         <!-- Status Texts -->
-                        <p id="status-pending" class="hidden text-sm font-semibold text-yellow-600">Cierre pendiente de aprobación.</p>
-                        <p id="status-closed" class="hidden text-sm font-semibold text-green-600">Día cerrado.</p>
+                        <div id="status-pending" class="hidden flex items-center text-sm font-semibold text-yellow-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg>
+                            <span>Pendiente de Aprobación</span>
+                        </div>
+                        <div id="status-closed" class="hidden flex items-center text-sm font-semibold text-green-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" /></svg>
+                            <span>Día Cerrado</span>
+                        </div>
                     </div>
                 </div>
                 <div id="product-report-list" class="space-y-2">
@@ -124,7 +123,7 @@
             </section>
 
             <!-- Sección de Reporte por Método de Pago -->
-            <section id="payment-report-section" class="relative bg-white p-6 rounded-2xl shadow-lg mt-8">
+            <section id="payment-report-section" class="hidden relative bg-white p-6 rounded-2xl shadow-lg mt-8">
                 <h2 id="payment-report-title" class="text-2xl font-semibold text-gray-700 mb-4">Reporte por Método de Pago</h2>
                 <div id="payment-report-list" class="space-y-2"></div>
                 <div class="loading-overlay absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center hidden">
@@ -138,6 +137,21 @@
                 <div id="stock-report-list" class="space-y-2"></div>
             </section>
         </main>
+    </div>
+
+    <!-- Modal de Confirmación Genérico -->
+    <div id="confirmation-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100">
+                <svg class="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            </div>
+            <h3 id="modal-title" class="text-2xl font-bold text-gray-800 mt-4">¿Estás seguro?</h3>
+            <p id="modal-message" class="text-gray-500 my-2">Esta acción es importante y podría tener consecuencias.</p>
+            <div class="mt-6 flex justify-center gap-4">
+                <button id="modal-cancel-btn" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancelar</button>
+                <button id="modal-confirm-btn" class="px-6 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700">Confirmar</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -155,6 +169,7 @@
         const approveBtn = document.getElementById('approve-closure-btn');
         const forceBtn = document.getElementById('force-closure-btn');
         const regenerateBtn = document.getElementById('regenerate-report-btn');
+        const reopenBtn = document.getElementById('reopen-day-btn');
         const proposeBtn = document.getElementById('propose-closure-btn');
         const statusPending = document.getElementById('status-pending');
         const statusClosed = document.getElementById('status-closed');
@@ -162,38 +177,22 @@
 
         async function loadDashboardData(date = '') {
             const url = date ? `/api/dashboard/data?date=${date}` : '/api/dashboard/data';
+            const totalSalesEl = document.getElementById('total-sales');
             try {
                 const response = await fetch(url, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
                 });
-
                 if (response.status === 403 || response.status === 401) {
                     window.location.href = '/login.html';
                     return;
                 }
-
                 const data = await response.json();
-
-                // Actualizar total de ventas
-                document.getElementById('total-sales').innerText = `S/. ${data.totalSales.toFixed(2)}`;
-
-                // Mostrar lista de pedidos
-                const ordersList = document.getElementById('orders-list');
-                ordersList.innerHTML = '';
-                if (data.orders.length === 0) {
-                    ordersList.innerHTML = '<p class="text-gray-500">No hay pedidos para esta fecha.</p>';
-                } else {
-                    data.orders.forEach(order => {
-                        const orderElement = `<div class="p-3 bg-gray-50 rounded-lg"><p class="font-semibold">${order.customer_name}</p><p class="text-sm text-gray-600">Total: S/. ${parseFloat(order.total).toFixed(2)} | ${order.payment_method || 'N/A'} | Estado: ${order.status}</p></div>`;
-                        ordersList.insertAdjacentHTML('beforeend', orderElement);
-                    });
-                }
+                totalSalesEl.innerText = `S/. ${data.totalSales.toFixed(2)}`;
             } catch (error) {
                 console.error('Error al cargar datos del dashboard:', error);
-                document.getElementById('total-sales').innerText = 'Error';
-                document.getElementById('orders-list').innerHTML = '<p class="text-red-500">Error al cargar pedidos.</p>';
+                totalSalesEl.innerText = 'Error';
             }
         }
 
@@ -360,9 +359,10 @@
             try {
                 const payload = JSON.parse(atob(token.split('.')[1]));
                 userRole = payload.role;
-
-                adminMenuItemsContainer.innerHTML = ''; // Limpiar por si acaso
-                
+    
+                // Limpiar y construir el menú de acciones basado en el rol
+                adminMenuItemsContainer.innerHTML = ''; 
+    
                 if (userRole === 'admin') {
                     const adminLinks = [
                         { href: '/manage-products.html', text: 'Gestionar Productos' },
@@ -384,13 +384,14 @@
                     adminMenuItemsContainer.innerHTML += `<a href="/accounts.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Cuentas Abiertas</a>`;
                     adminMenuItemsContainer.innerHTML += `<a href="/manage-expenses.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Registrar Gasto</a>`;
                 }
-
-                // Ocultar secciones financieras para el rol de cocina
-                if (userRole === 'kitchen') {
-                    document.getElementById('summary-section').style.display = 'none';
-                    document.getElementById('payment-report-section').style.display = 'none';
+    
+                // Mostrar secciones relevantes para admin y cajero
+                if (userRole === 'admin' || userRole === 'cashier') {
+                    document.getElementById('summary-section').classList.remove('hidden');
+                    document.getElementById('product-report-section').classList.remove('hidden');
+                    document.getElementById('payment-report-section').classList.remove('hidden');
                 }
-
+    
             } catch (e) {
                 console.error('Error al decodificar token:', e);
                 adminMenuItemsContainer.innerHTML = '';
@@ -401,7 +402,7 @@
             const selectedDate = datePicker.value;
             const loadingOverlays = document.querySelectorAll('.loading-overlay');
             loadingOverlays.forEach(overlay => overlay.classList.remove('hidden'));
-
+            
             const dataPromises = [
                 loadProductReport(selectedDate),
                 loadStockReport(selectedDate),
@@ -413,21 +414,18 @@
             }
 
             await Promise.all(dataPromises);
-
+            
             loadingOverlays.forEach(overlay => overlay.classList.add('hidden'));
 
             const productReportTitle = document.getElementById('product-report-title');
             const paymentReportTitle = document.getElementById('payment-report-title');
-            const ordersListTitle = document.getElementById('orders-list-title');
             const subtitle = document.getElementById('dashboard-subtitle');
             if (selectedDate) {
                 subtitle.innerText = `Mostrando datos para: ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-PE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`;
-                ordersListTitle.innerText = 'Pedidos de la Fecha Seleccionada';
                 productReportTitle.innerText = 'Reporte de Productos de la Fecha Seleccionada';
                 paymentReportTitle.innerText = 'Reporte por Método de Pago de la Fecha Seleccionada';
             } else {
                 subtitle.innerText = 'Ventas y reportes del día de hoy';
-                ordersListTitle.innerText = 'Pedidos de Hoy';
                 productReportTitle.innerText = 'Reporte de Productos Vendidos Hoy';
                 paymentReportTitle.innerText = 'Reporte por Método de Pago de Hoy';
             }
@@ -435,7 +433,7 @@
 
         async function updateDashboardActions(date) {
             // Hide all buttons and statuses first
-            [approveBtn, forceBtn, regenerateBtn, proposeBtn, statusPending, statusClosed].forEach(el => el.classList.add('hidden'));
+            [approveBtn, forceBtn, regenerateBtn, reopenBtn, proposeBtn, statusPending, statusClosed].forEach(el => el && el.classList.add('hidden'));
 
             const today = new Date().toISOString().split('T')[0];
             const selectedDate = date || today;
@@ -453,10 +451,12 @@
                         approveBtn.classList.remove('hidden');
                     } else if (status === 'open') {
                         forceBtn.classList.remove('hidden');
-                    } else { // closed
+                    } else if (status === 'closed') {
                         regenerateBtn.classList.remove('hidden');
+                        reopenBtn.classList.remove('hidden');
                     }
-                } else if (userRole === 'cashier') {
+                }
+                if (userRole === 'cashier') {
                     if (selectedDate === today && status === 'open') {
                         proposeBtn.classList.remove('hidden');
                     } else if (status === 'pending_closure') {
@@ -523,6 +523,37 @@
             }
         }
 
+        async function forceClosureReport() {
+            if (!confirm('¿Está seguro que desea FORZAR el cierre del día? Esta acción es para casos donde no hay propuesta del cajero.')) return;
+            const selectedDate = datePicker.value;
+
+            try {
+                const response = await fetch('/api/reports/force-closure', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ date: selectedDate })
+                });
+
+                if (!response.ok) throw new Error('Error al forzar el cierre y generar el PDF.');
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = response.headers.get('Content-Disposition').split('filename=')[1].replace(/"/g, '');
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                updateAllData();
+            } catch (error) {
+                showToast('No se pudo forzar el cierre.', 'error');
+            }
+        }
+
         async function regenerateReport() {
             const selectedDate = datePicker.value;
             try {
@@ -553,6 +584,38 @@
             }
         }
 
+        async function reopenDay() {
+            const modal = document.getElementById('confirmation-modal');
+            document.getElementById('modal-title').innerText = 'Reabrir Día';
+            document.getElementById('modal-message').innerText = '¿Está seguro que desea REABRIR este día? Podrán registrarse nuevos pedidos.';
+            const confirmBtn = document.getElementById('modal-confirm-btn');
+            confirmBtn.className = 'px-6 py-2 bg-yellow-500 text-gray-800 font-bold rounded-lg hover:bg-yellow-600'; // Change color for this action
+            confirmBtn.innerText = 'Sí, Reabrir';
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            const handleConfirm = async () => {
+                const selectedDate = datePicker.value;
+                try {
+                    const response = await fetch('/api/reports/reopen', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ date: selectedDate })
+                    });
+                    if (!response.ok) throw new Error((await response.json()).message || 'No se pudo reabrir el día.');
+                    showToast('El día ha sido reabierto.');
+                    updateAllData();
+                } catch (error) {
+                    showToast(error.message, 'error');
+                } finally {
+                    closeModal();
+                }
+            }
+
+            confirmBtn.onclick = handleConfirm; // Assign the action
+        }
+
         function showToast(message, type = 'success') {
             const toastContainer = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -564,33 +627,48 @@
             setTimeout(() => toast.remove(), 3000);
         }
 
+        function closeModal() {
+            const modal = document.getElementById('confirmation-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            // Clean up the confirm button's event listener to prevent multiple executions
+            document.getElementById('modal-confirm-btn').onclick = null;
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             // Por defecto, el dashboard ya carga los datos del día porque el date picker está vacío.
             // Esta es la lógica correcta y cumple con el requisito.
 
             setupUIForRole(); // Configura la UI basada en el rol del usuario
-            datePicker.addEventListener('change', updateAllData);
+            if(datePicker) datePicker.addEventListener('change', updateAllData);
 
             const logoutButton = document.getElementById('logout-button');
-            logoutButton.addEventListener('click', (e) => {
+            if(logoutButton) logoutButton.addEventListener('click', (e) => {
                 e.preventDefault();
                 localStorage.removeItem('cangre_burger_token');
                 window.location.href = '/login.html';
             });
             
+            if (proposeBtn) proposeBtn.addEventListener('click', proposeClosure);
+            if (approveBtn) approveBtn.addEventListener('click', generateReport);
+            if (forceBtn) forceBtn.addEventListener('click', forceClosureReport);
+            if (regenerateBtn) regenerateBtn.addEventListener('click', regenerateReport);
+            if (reopenBtn) reopenBtn.addEventListener('click', reopenDay);
+            if(viewTodayBtn) viewTodayBtn.addEventListener('click', () => {
+                datePicker.value = ''; // Limpiar el selector de fecha dispara el comportamiento por defecto
+                updateAllData();
+            });
+
             // Lógica para el menú de acciones
             const actionsMenuButton = document.getElementById('actions-menu-button');
             const actionsDropdown = document.getElementById('actions-dropdown');
-            actionsMenuButton.addEventListener('click', () => {
+            if(actionsMenuButton) actionsMenuButton.addEventListener('click', () => {
                 actionsDropdown.classList.toggle('hidden');
             });
-            // Ocultar el menú si se hace clic fuera
-            window.addEventListener('click', (e) => {
-                if (!actionsMenuButton.contains(e.target)) {
-                    actionsDropdown.classList.add('hidden');
-                }
-            });
-            
+
+            // Listener para el botón de cancelar del modal
+            document.getElementById('modal-cancel-btn').addEventListener('click', closeModal);
+
             updateAllData(); // Carga inicial para el día de hoy
         });
     </script>

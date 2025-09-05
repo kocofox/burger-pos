@@ -92,14 +92,22 @@
             orderCard.id = `order-card-${order.id}`;
 
             // Diferenciar entre items ya servidos (en una tanda anterior) y los nuevos.
+
             // Por defecto, en una orden nueva, todos los items son 'nuevos'.
-            let itemsHtml = order.items.map(item => {
+            const itemsHtml = order.items.map(item => {
                 let sauceLine = '';
                 if (item.sauces && item.sauces.length > 0) {
                     sauceLine = `<div class="text-xs text-amber-300 pl-5">- Cremas: ${item.sauces.join(', ')}</div>`;
                 }
-                // Los items nuevos se resaltan.
-                return `<li class="text-gray-100 font-semibold">${item.quantity}x ${item.name}</li>${sauceLine}`;
+
+                // Si es una adición y el item no es nuevo, se muestra tachado y en gris.
+                if (order.is_addition && order.newItemsIds && !order.newItemsIds.includes(item.id)) {
+                    return `<li class="text-gray-400 line-through">${item.quantity}x ${item.name}</li>`;
+                }
+
+                // Los items nuevos o de una orden nueva se resaltan.
+                const nuevoLabel = (order.is_addition && order.newItemsIds && order.newItemsIds.includes(item.id)) ? ' <span class="text-amber-300">(NUEVO)</span>' : '';
+                return `<li class="text-gray-100 font-semibold">${item.quantity}x ${item.name}${nuevoLabel}</li>${sauceLine}`;
             }).join('');
 
             // Si la orden es una adición, el nombre del cliente lo indicará.
