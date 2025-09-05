@@ -13,6 +13,9 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+// Establecer la zona horaria para toda la aplicación a GMT-5 (Lima, Perú)
+process.env.TZ = 'America/Lima';
+
 const PORT = process.env.PORT || 3000;
 
 // Middleware para parsear JSON y servir archivos estáticos
@@ -215,7 +218,7 @@ app.get('/api/categories/ordered', async (req, res) => {
 });
 
 // --- Admin Management: Categories ---
-app.get('/api/categories', verifyToken, checkRole(['admin']), async (req, res) => {
+app.get('/api/categories', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     try {
         const categories = await db.Category.findAll({ order: [['display_order', 'ASC'], ['name', 'ASC']] });
         res.json(categories);
@@ -234,7 +237,7 @@ app.post('/api/orders', verifyToken, checkRole(['admin', 'cashier']), async (req
     try {
 
         // VERIFICACIÓN DE CIERRE DE DÍA
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date().toLocaleDateString('en-CA'); // Formato YYYY-MM-DD en la zona horaria correcta
         const closureStatus = await db.DailyClosure.findByPk(today);
 
         if (closureStatus && closureStatus.status === 'closed') {
@@ -478,7 +481,9 @@ function buildReportWhereClause(user, date, tableAlias = '') {
     const whereClause = {};
 
     if (date) {
-        whereClause.timestamp = { [Op.between]: [`${date} 00:00:00`, `${date} 23:59:59`] };
+        const startOfDay = new Date(`${date}T00:00:00`);
+        const endOfDay = new Date(`${date}T23:59:59.999`);
+        whereClause.timestamp = { [Op.between]: [startOfDay, endOfDay] };
     } else {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -566,7 +571,7 @@ app.get('/api/dashboard/payment-report', verifyToken, checkRole(['admin', 'cashi
 // Get closure status for a given date
 app.get('/api/reports/status', verifyToken, checkRole(['admin', 'cashier', 'kitchen']), async (req, res) => {
     const { date } = req.query;
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    const targetDate = date || new Date().toLocaleDateString('en-CA');
 
     try {
         const closure = await db.DailyClosure.findByPk(targetDate);
@@ -584,7 +589,7 @@ app.get('/api/reports/status', verifyToken, checkRole(['admin', 'cashier', 'kitc
 // Propose day closure (for cashiers and admins)
 app.post('/api/reports/propose-closure', verifyToken, checkRole(['cashier', 'admin']), async (req, res) => {
     const { id: userId } = req.user;
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA');
 
     try {
         const [closure, created] = await db.DailyClosure.findOrCreate({
@@ -602,7 +607,7 @@ app.post('/api/reports/propose-closure', verifyToken, checkRole(['cashier', 'adm
 });
 
 async function getReportData(date) {
-    const targetDateStr = date || new Date().toISOString().split('T')[0];
+    const targetDateStr = date || new Date().toLocaleDateString('en-CA');
     const where = { timestamp: { [Op.between]: [`${targetDateStr} 00:00:00`, `${targetDateStr} 23:59:59`] } };
 
     const totalSales = await db.Order.sum('total', { where }) || 0;
@@ -806,7 +811,7 @@ app.post('/api/reports/approve-closure', verifyToken, checkRole(['admin']), asyn
     const { date } = req.body;
     const { id: adminId } = req.user;
 
-    const targetDateStr = date || new Date().toISOString().split('T')[0];
+    const targetDateStr = date || new Date().toLocaleDateString('en-CA');
 
     try {
         await db.DailyClosure.upsert({
@@ -829,7 +834,7 @@ app.post('/api/reports/approve-closure', verifyToken, checkRole(['admin']), asyn
 app.post('/api/reports/force-closure', verifyToken, checkRole(['admin']), async (req, res) => {
     const { date } = req.body;
     const { id: adminId } = req.user;
-    const targetDateStr = date || new Date().toISOString().split('T')[0];
+    const targetDateStr = date || new Date().toLocaleDateString('en-CA');
 
     try {
         await db.DailyClosure.upsert({
@@ -862,7 +867,7 @@ app.post('/api/reports/regenerate', verifyToken, checkRole(['admin']), async (re
 // Reopen a closed day (for admins)
 app.post('/api/reports/reopen', verifyToken, checkRole(['admin']), async (req, res) => {
     const { date } = req.body;
-    const targetDateStr = date || new Date().toISOString().split('T')[0];
+    const targetDateStr = date || new Date().toLocaleDateString('en-CA');
 
     try {
         const closure = await db.DailyClosure.findByPk(targetDateStr);
@@ -880,7 +885,7 @@ app.post('/api/reports/reopen', verifyToken, checkRole(['admin']), async (req, r
 
 // --- Rutas para Gestión de Productos (Admin) ---
 
-app.get('/api/products', verifyToken, checkRole(['admin']), async (req, res) => {
+app.get('/api/products', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     try {
         const products = await db.Product.findAll({
             include: [{ model: db.Category, as: 'category' }],
@@ -895,7 +900,7 @@ app.get('/api/products', verifyToken, checkRole(['admin']), async (req, res) => 
     }
 });
 
-app.post('/api/products', verifyToken, checkRole(['admin']), async (req, res) => {
+app.post('/api/products', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     const { name, price, category_id, stock, stock_type } = req.body;
     try {
         await db.Product.create({ name, price, category_id, stock, stock_type });
@@ -906,11 +911,18 @@ app.post('/api/products', verifyToken, checkRole(['admin']), async (req, res) =>
     }
 });
 
-app.put('/api/products/:id', verifyToken, checkRole(['admin']), async (req, res) => {
+app.put('/api/products/:id', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     const { id } = req.params;
-    const { name, price, category_id, stock, stock_type } = req.body;
+    const productData = req.body;
+
+    // Si el usuario es un cajero, no se le permite modificar el stock.
+    // Eliminamos el campo 'stock' del objeto de datos para que no se actualice.
+    if (req.user.role === 'cashier') {
+        delete productData.stock;
+    }
+
     try {
-        const [affectedRows] = await db.Product.update({ name, price, category_id, stock, stock_type }, { where: { id } });
+        const [affectedRows] = await db.Product.update(productData, { where: { id } });
         if (affectedRows === 0) {
             return res.status(404).json({ message: 'Producto no encontrado.' });
         }
@@ -921,7 +933,7 @@ app.put('/api/products/:id', verifyToken, checkRole(['admin']), async (req, res)
     }
 });
 
-app.delete('/api/products/:id', verifyToken, checkRole(['admin']), async (req, res) => {
+app.delete('/api/products/:id', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     const { id } = req.params;
     try {
         const affectedRows = await db.Product.destroy({ where: { id } });

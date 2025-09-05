@@ -370,9 +370,10 @@
                         { href: '/manage-ingredients.html', text: 'Gestionar Insumos' },
                         { href: '/manage-sauces.html', text: 'Gestionar Cremas' },
                         { href: '/manage-expenses.html', text: 'Gestionar Gastos' },
-                        { href: '/accounts.html', text: 'Cuentas Abiertas' },
-                        { href: '/kitchen', text: 'Ir a Cocina' }
+                        { href: '/accounts.html', text: 'Cuentas Abiertas' }
                     ];
+                    adminLinks.unshift({ href: '/', text: 'Ir a Comanda' }); // Añadir al principio del menú
+                    adminLinks.push({ href: '/kitchen', text: 'Ir a Cocina' });
                     adminLinks.forEach(link => {
                         adminMenuItemsContainer.innerHTML += `<a href="${link.href}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">${link.text}</a>`;
                     });
@@ -382,6 +383,7 @@
                 } else if (userRole === 'cashier') {
                     adminMenuItemsContainer.innerHTML += `<a href="/" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Ir a Comanda</a>`;
                     adminMenuItemsContainer.innerHTML += `<a href="/accounts.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Cuentas Abiertas</a>`;
+                    adminMenuItemsContainer.innerHTML += `<a href="/manage-products.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Gestionar Productos</a>`;
                     adminMenuItemsContainer.innerHTML += `<a href="/manage-expenses.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Registrar Gasto</a>`;
                 }
     

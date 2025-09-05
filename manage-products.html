@@ -115,6 +115,14 @@
             window.location.href = '/login.html';
         }
 
+        let userRole = '';
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            userRole = payload.role;
+        } catch (e) {
+            window.location.href = '/login.html';
+        }
+
         let categories = [];
 
         async function loadProducts() {
@@ -170,6 +178,11 @@
                 stockInput.disabled = true;
                 stockLabel.innerText = 'Stock (Calculado)';
             } else {
+                // Si el usuario es cajero, el stock de productos simples tampoco es editable.
+                if (userRole === 'cashier') {
+                    stockInput.disabled = true;
+                    stockLabel.innerText = 'Stock (Solo Admin)';
+                }
                 stockInput.value = product.stock;
                 stockInput.disabled = false;
                 stockLabel.innerText = 'Stock';

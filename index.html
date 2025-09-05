@@ -11,6 +11,12 @@
     </style>
 </head>
 <body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+    <script>
+        const token = localStorage.getItem('cangre_burger_token');
+        if (!token) {
+            window.location.href = '/login.html';
+        }
+    </script>
     <div class="text-center mb-12">
         <h1 class="text-5xl font-bold text-gray-800">Cangre Burger POS</h1>
         <p class="text-xl text-gray-500 mt-2">Bienvenido, ¿qué deseas hacer?</p>
