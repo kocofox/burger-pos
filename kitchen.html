@@ -69,6 +69,7 @@
     </main>
 
     <audio id="notification-sound" src="https://static.whatsapp.net/rsrc.php/yW/r/BS_BUUXbKq5.mp3" preload="auto"></audio>
+    <audio id="ready-sound" src="/src/ding.mp3" preload="auto"></audio>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
@@ -81,6 +82,7 @@
         // --- DOM Elements ---
         const ordersContainer = document.getElementById('orders-container');
         const notificationSound = document.getElementById('notification-sound');
+        const readySound = document.getElementById('ready-sound');
         const statusIndicator = document.getElementById('status-indicator');
 
         function renderOrderCard(order) {
@@ -206,6 +208,7 @@
         });
 
         function markAsReady(orderId) {
+            readySound.play();
             socket.emit('mark_order_ready', orderId);
         }
 
