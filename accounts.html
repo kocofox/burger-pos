@@ -47,6 +47,16 @@
                 <h4 class="font-bold text-lg mb-3">Método de Pago</h4>
                 <div id="payment-methods-modal" class="grid grid-cols-2 gap-4"></div>
             </div>
+            <!-- Nueva sección para el cálculo de cambio en efectivo -->
+            <div id="cash-payment-section" class="hidden mt-4">
+                <label for="cash-received" class="block text-sm font-medium text-gray-700">Efectivo Recibido (S/.)</label>
+                <input type="number" id="cash-received" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="Ej: 50.00">
+                <div class="mt-2 text-right">
+                    <span class="text-lg font-bold text-blue-600">Vuelto: 
+                        <span id="change-due">S/. 0.00</span>
+                    </span>
+                </div>
+            </div>
             <div class="mt-8 flex justify-end space-x-4">
                 <button onclick="closePaymentModal()" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancelar</button>
                 <button id="confirm-payment-button" class="px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700">Confirmar Pago</button>
@@ -120,10 +130,14 @@
             const methods = await response.json();
             paymentMethodsContainer.innerHTML = methods.map((method, index) => `
                 <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input type="radio" name="payment-modal" value="${method}" class="h-4 w-4 text-amber-600" ${index === 0 ? 'checked' : ''}>
+                    <input type="radio" name="payment-modal" value="${method}" class="h-4 w-4 text-amber-600" ${index === 0 ? 'checked' : ''} onchange="handlePaymentMethodChange()">
                     <span class="ml-3 text-sm font-medium">${method}</span>
                 </label>
             `).join('');
+
+            // Añadir listeners y configurar estado inicial de la calculadora de cambio
+            document.getElementById('cash-received').addEventListener('input', calculateChange);
+            handlePaymentMethodChange();
 
             paymentModal.classList.remove('hidden');
             paymentModal.classList.add('flex');
@@ -133,6 +147,11 @@
             paymentModal.classList.add('hidden');
             paymentModal.classList.remove('flex');
             currentAccountId = null;
+            // Limpiar campos de la calculadora al cerrar
+            document.getElementById('cash-received').value = '';
+            document.getElementById('change-due').innerText = 'S/. 0.00';
+            document.getElementById('cash-payment-section').classList.add('hidden');
+
         }
 
         confirmPaymentBtn.addEventListener('click', async () => {
@@ -152,6 +171,30 @@
         });
 
         document.addEventListener('DOMContentLoaded', loadOpenAccounts);
+
+        // --- Lógica para el cálculo de cambio ---
+        function handlePaymentMethodChange() {
+            const selectedPaymentMethod = document.querySelector('input[name="payment-modal"]:checked')?.value;
+            const cashSection = document.getElementById('cash-payment-section');
+            if (selectedPaymentMethod && selectedPaymentMethod.toLowerCase() === 'efectivo') {
+                cashSection.classList.remove('hidden');
+            } else {
+                cashSection.classList.add('hidden');
+            }
+        }
+
+        function calculateChange() {
+            const totalText = document.querySelector('#payment-summary span').innerText;
+            const total = parseFloat(totalText.replace('S/. ', '')) || 0;
+            const cashReceivedInput = document.getElementById('cash-received');
+            const cashReceived = parseFloat(cashReceivedInput.value) || 0;
+            const changeDueEl = document.getElementById('change-due');
+
+            const change = cashReceived - total;
+
+            changeDueEl.innerText = `S/. ${change >= 0 ? change.toFixed(2) : '0.00'}`;
+        }
+
     </script>
 </body>
 </html>

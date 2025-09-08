@@ -20,16 +20,6 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware para parsear JSON y servir archivos estáticos
 app.use(express.json());
-app.use(express.static(__dirname));
-
-// Middleware para deshabilitar la caché en todas las rutas de la API
-app.use('/api', (req, res, next) => {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    res.setHeader('Surrogate-Control', 'no-store');
-    next();
-});
 
 // =================================================================
 // --- API ROUTES ---
@@ -300,7 +290,8 @@ app.post('/api/orders', verifyToken, checkRole(['admin', 'cashier']), async (req
             total,
             payment_method: paymentMethod,
             status: status,
-            notes
+            notes,
+            user_id: userId // Añadir el ID del usuario que crea la orden
         }, { transaction: t });
 
         // 4. Insertar items y actualizar stock
@@ -490,10 +481,12 @@ function buildReportWhereClause(user, date, tableAlias = '') {
         whereClause.timestamp = { [Op.gte]: today };
     }
 
+    // Si el rol es 'cashier', solo puede ver sus propias ventas.
+    // Si es 'admin', no se aplica este filtro para que pueda ver todo.
     if (role === 'cashier') {
         whereClause.user_id = userId;
     }
-
+    
     return { where: whereClause };
 }
 
@@ -1173,9 +1166,100 @@ app.delete('/api/expenses/:id', verifyToken, checkRole(['admin']), async (req, r
     }
 });
 
+// --- Admin Management: Users (CRUD) ---
+app.get('/api/roles', verifyToken, checkRole(['admin']), async (req, res) => {
+    try {
+        const roles = await db.Role.findAll({ order: [['name', 'ASC']] });
+        res.json(roles);
+    } catch (error) {
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+app.get('/api/users', verifyToken, checkRole(['admin']), async (req, res) => {
+    try {
+        const users = await db.User.findAll({
+            include: [{ model: db.Role, as: 'role' }],
+            order: [['username', 'ASC']]
+        });
+        res.json(users);
+    } catch (error) {
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+app.post('/api/users', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { username, password, full_name, role_id } = req.body;
+    if (!username || !password || !role_id) {
+        return res.status(400).json({ message: 'Usuario, contraseña y rol son requeridos.' });
+    }
+    try {
+        const salt = await bcrypt.genSalt(10);
+        const password_hash = await bcrypt.hash(password, salt);
+        await db.User.create({ username, password_hash, full_name, role_id });
+        res.status(201).json({ message: 'Usuario creado exitosamente.' });
+    } catch (error) {
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            return res.status(409).json({ message: 'El nombre de usuario ya existe.' });
+        }
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+app.put('/api/users/:id', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { id } = req.params;
+    const { username, password, full_name, role_id } = req.body;
+
+    try {
+        const userData = { username, full_name, role_id };
+        if (password) {
+            const salt = await bcrypt.genSalt(10);
+            userData.password_hash = await bcrypt.hash(password, salt);
+        }
+        const [affectedRows] = await db.User.update(userData, { where: { id } });
+        if (affectedRows === 0) {
+            return res.status(404).json({ message: 'Usuario no encontrado.' });
+        }
+        res.status(200).json({ message: 'Usuario actualizado.' });
+    } catch (error) {
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            return res.status(409).json({ message: 'El nombre de usuario ya existe.' });
+        }
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+app.delete('/api/users/:id', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const affectedRows = await db.User.destroy({ where: { id } });
+        if (affectedRows === 0) {
+            return res.status(404).json({ message: 'Usuario no encontrado.' });
+        }
+        res.status(200).json({ message: 'Usuario eliminado.' });
+    } catch (error) {
+        if (error.name === 'SequelizeForeignKeyConstraintError') {
+            return res.status(400).json({ message: 'No se puede eliminar el usuario porque tiene registros asociados (pedidos, gastos, etc.).' });
+        }
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
 // =================================================================
 // --- PAGE SERVING ROUTES ---
 // =================================================================
+
+// Middleware para servir archivos estáticos (CSS, JS del cliente, imágenes, etc.)
+// Debe ir DESPUÉS de las rutas de la API.
+app.use(express.static(__dirname));
+
+// Middleware para deshabilitar la caché en todas las rutas de la API
+app.use('/api', (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store');
+    // No es necesario llamar a next() si esta es la última configuración global para /api
+    // pero lo dejamos por si se añaden más middlewares después.
+    next();
+});
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'burger.html'));
@@ -1215,6 +1299,10 @@ app.get('/manage-expenses.html', (req, res) => {
 
 app.get('/accounts.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'accounts.html'));
+});
+
+app.get('/manage-users.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'manage-users.html'));
 });
 
 app.get('/login.html', (req, res) => {

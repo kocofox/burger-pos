@@ -126,6 +126,17 @@
                 <h4 class="font-bold text-lg mb-3">Método de Pago</h4>
                 <div id="payment-methods" class="grid grid-cols-2 gap-4"></div>
             </div>
+            <!-- Nueva sección para el cálculo de cambio en efectivo -->
+            <div id="cash-payment-section" class="hidden mt-4">
+                <label for="cash-received" class="block text-sm font-medium text-gray-700">Efectivo Recibido (S/.)</label>
+                <input type="number" id="cash-received" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="Ej: 50.00">
+                <div class="mt-2 text-right">
+                    <span class="text-lg font-bold text-blue-600">Vuelto: 
+                        <span id="change-due">S/. 0.00</span>
+                    </span>
+                </div>
+            </div>
+
             <div class="mt-6 pt-4 border-t border-gray-200 text-right font-bold text-xl text-gray-800">
                 Total: <span id="summary-total-price"></span>
             </div>
@@ -209,10 +220,20 @@
                 const paymentContainer = document.getElementById('payment-methods');
                 paymentContainer.innerHTML = paymentMethods.map((method, index) => `
                     <label for="payment-${method.toLowerCase()}" class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                        <input type="radio" id="payment-${method.toLowerCase()}" name="payment" value="${method}" class="h-4 w-4 text-amber-600 border-gray-300 focus:ring-amber-500" ${index === 0 ? 'checked' : ''}>
+                        <input type="radio" id="payment-${method.toLowerCase()}" name="payment" value="${method}" class="h-4 w-4 text-amber-600 border-gray-300 focus:ring-amber-500" ${index === 0 ? 'checked' : ''} onchange="handlePaymentMethodChange()">
                         <span class="ml-3 text-sm font-medium text-gray-700">${method}</span>
                     </label>
                 `).join('');
+
+                // Añadir listener para el cálculo de cambio
+                document.getElementById('cash-received').addEventListener('input', calculateChange);
+
+                // Disparar el handler una vez para establecer el estado inicial
+                // basado en el método de pago seleccionado por defecto.
+                handlePaymentMethodChange();
+
+                // Añadir listener para el cálculo de cambio
+                document.getElementById('cash-received').addEventListener('input', calculateChange);
 
             } catch (error) {
                 console.error("Error al renderizar el menú:", error);
@@ -453,6 +474,11 @@
             setTimeout(() => {
                 modal.classList.remove('flex');
                 modal.classList.add('hidden');
+                // Limpiar los campos de pago en efectivo al cerrar
+                document.getElementById('cash-received').value = '';
+                document.getElementById('change-due').innerText = 'S/. 0.00';
+                document.getElementById('cash-payment-section').classList.add('hidden');
+
             }, 300);
         }
 
@@ -744,6 +770,30 @@
                 selectorDiv.classList.add('hidden');
             }
             renderCart(); // Re-renderizar el carrito para mostrar las cremas seleccionadas
+        }
+
+        // --- Lógica para el cálculo de cambio ---
+        function handlePaymentMethodChange() {
+            const selectedPaymentMethod = document.querySelector('input[name="payment"]:checked')?.value;
+            const cashSection = document.getElementById('cash-payment-section');
+            // Asegurarse de que cashSection exista antes de manipularlo
+            if (cashSection) {
+                if (selectedPaymentMethod && selectedPaymentMethod.toLowerCase() === 'efectivo') {
+                    cashSection.classList.remove('hidden');
+                } else {
+                    cashSection.classList.add('hidden');
+                }
+            }
+        }
+
+        function calculateChange() {
+            const totalText = document.getElementById('summary-total-price').innerText;
+            const total = parseFloat(totalText.replace('S/. ', '')) || 0;
+            const cashReceivedInput = document.getElementById('cash-received'); // El input puede no existir si el modal no está abierto
+            const cashReceived = cashReceivedInput ? parseFloat(cashReceivedInput.value) || 0 : 0;
+            const changeDueEl = document.getElementById('change-due');
+            const change = cashReceived - total;
+            if (changeDueEl) changeDueEl.innerText = `S/. ${change >= 0 ? change.toFixed(2) : '0.00'}`;
         }
     </script>
 </body>
