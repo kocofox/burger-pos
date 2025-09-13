@@ -637,7 +637,9 @@ function generatePdfReport(res, data, user) {
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
 
     const formattedDate = new Date(targetDateStr + 'T12:00:00').toLocaleDateString('es-PE', { year: 'numeric', month: 'long', day: 'numeric' });
-    const filename = `Reporte-Ventas-${new Date(targetDateStr).toLocaleDateString('es-PE').replace(/\//g, '-')}.pdf`;
+    // Se añade 'T12:00:00' para evitar problemas de zona horaria.
+    // Esto asegura que la fecha en el nombre del archivo siempre coincida con la del reporte.
+    const filename = `Reporte-Ventas-${new Date(targetDateStr + 'T12:00:00').toLocaleDateString('es-PE').replace(/\//g, '-')}.pdf`;
     res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-type', 'application/pdf');
 

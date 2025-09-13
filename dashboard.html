@@ -438,8 +438,8 @@
             // Hide all buttons and statuses first
             [approveBtn, forceBtn, regenerateBtn, reopenBtn, proposeBtn, statusPending, statusClosed].forEach(el => el && el.classList.add('hidden'));
 
-            const today = new Date().toISOString().split('T')[0];
-            const selectedDate = date || today;
+            const today = new Date().toLocaleDateString('en-CA'); // Formato YYYY-MM-DD
+            const selectedDate = date || today; // Si no hay fecha, se usa la de hoy.
 
             try {
                 const response = await fetch(`/api/reports/status?date=${selectedDate}`, {
@@ -449,16 +449,22 @@
                 
                 const { status } = await response.json();
 
+                // Lógica de visibilidad de botones para el Administrador
                 if (userRole === 'admin') {
                     if (status === 'pending_closure') {
                         approveBtn.classList.remove('hidden');
-                    } else if (status === 'open') {
-                        forceBtn.classList.remove('hidden');
+                        statusPending.classList.remove('hidden');
+                    } else if (status === 'open' && selectedDate <= today) {
+                        // Solo mostrar "Forzar Cierre" si el día está abierto y no es una fecha futura.
+                        forceBtn.classList.remove('hidden'); 
                     } else if (status === 'closed') {
+                        // Si el día está cerrado, mostrar estas opciones sin importar la fecha.
                         regenerateBtn.classList.remove('hidden');
                         reopenBtn.classList.remove('hidden');
+                        statusClosed.classList.remove('hidden');
                     }
                 }
+                // Lógica de visibilidad de botones para el Cajero
                 if (userRole === 'cashier') {
                     if (selectedDate === today && status === 'open') {
                         proposeBtn.classList.remove('hidden');
@@ -551,7 +557,8 @@
                 document.body.appendChild(a);
                 a.click();
                 window.URL.revokeObjectURL(url);
-                updateAllData();
+                showToast('Día cerrado y reporte generado exitosamente.');
+                await updateAllData(); // Recargar todos los datos para reflejar el nuevo estado 'closed'
             } catch (error) {
                 showToast('No se pudo forzar el cierre.', 'error');
             }
