@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte de Ventas - Cangre Burger</title>
+    <link href="/dist/output.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .loader {
+            border-top-color: #3498db;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <script>
+        const token = localStorage.getItem('cangre_burger_token');
+        if (!token) window.location.href = '/login.html';
+    </script>
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">Reporte de Ventas Detallado</h1>
+                <p class="text-gray-500">Analiza las ventas por fecha y cliente.</p>
+            </div>
+            <a href="/dashboard" class="text-blue-600 hover:underline">&larr; Volver al Dashboard</a>
+        </header>
+
+        <!-- Filtros -->
+        <div class="bg-white p-4 rounded-lg shadow-md mb-6 flex flex-wrap items-center gap-4">
+            <div class="flex-1 min-w-[200px]">
+                <label for="start-date" class="block text-sm font-medium text-gray-700">Fecha Inicio</label>
+                <input type="date" id="start-date" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+            <div class="flex-1 min-w-[200px]">
+                <label for="end-date" class="block text-sm font-medium text-gray-700">Fecha Fin</label>
+                <input type="date" id="end-date" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+            <div class="flex-1 min-w-[250px]">
+                <label for="customer-search" class="block text-sm font-medium text-gray-700">Buscar Cliente (opcional)</label>
+                <div class="relative">
+                    <input type="text" id="customer-search" placeholder="Escribe para buscar..." class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    <div id="customer-results" class="hidden absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg"></div>
+                    <input type="hidden" id="customer-id">
+                </div>
+            </div>
+            <div class="self-end">
+                <button id="filter-button" class="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Filtrar</button>
+            </div>
+             <div class="self-end">
+                <button id="clear-filter-button" class="w-full bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Limpiar</button>
+            </div>
+        </div>
+
+        <!-- Resumen y Resultados -->
+        <div id="report-container" class="bg-white p-6 rounded-lg shadow-md">
+            <div id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-center">
+                <div>
+                    <h3 class="text-sm font-medium text-gray-500">Venta Total</h3>
+                    <p id="total-revenue" class="text-2xl font-bold text-gray-800">S/. 0.00</p>
+                </div>
+                <div>
+                    <h3 class="text-sm font-medium text-gray-500">Nº de Pedidos</h3>
+                    <p id="total-orders" class="text-2xl font-bold text-gray-800">0</p>
+                </div>
+            </div>
+
+            <div id="loader" class="hidden flex justify-center items-center my-8">
+                <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12"></div>
+            </div>
+
+            <div id="orders-table-container" class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pago</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cajero</th>
+                        </tr>
+                    </thead>
+                    <tbody id="orders-tbody" class="bg-white divide-y divide-gray-200">
+                        <!-- Filas de pedidos se insertarán aquí -->
+                        <tr><td colspan="6" class="text-center py-8 text-gray-500">Selecciona un rango de fechas para empezar.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const startDateInput = document.getElementById('start-date');
+        const endDateInput = document.getElementById('end-date');
+        const customerSearchInput = document.getElementById('customer-search');
+        const customerIdInput = document.getElementById('customer-id');
+        const customerResultsContainer = document.getElementById('customer-results');
+        const filterButton = document.getElementById('filter-button');
+        const clearFilterButton = document.getElementById('clear-filter-button');
+        const loader = document.getElementById('loader');
+        const ordersTbody = document.getElementById('orders-tbody');
+        const totalRevenueEl = document.getElementById('total-revenue');
+        const totalOrdersEl = document.getElementById('total-orders');
+
+        let selectedCustomer = null;
+
+        // --- Lógica de Búsqueda de Clientes ---
+        let debounceTimer;
+        customerSearchInput.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            const query = customerSearchInput.value.trim();
+            if (query === '') {
+                selectedCustomer = null;
+                customerIdInput.value = '';
+                customerResultsContainer.classList.add('hidden');
+                return;
+            }
+            if (selectedCustomer && selectedCustomer.full_name !== query) {
+                selectedCustomer = null;
+                customerIdInput.value = '';
+            }
+            debounceTimer = setTimeout(async () => {
+                if (query.length < 2) return;
+                const response = await fetch(`/api/customers?search=${encodeURIComponent(query)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const customers = await response.json();
+                customerResultsContainer.innerHTML = customers.map(c => `<div class="p-2 hover:bg-gray-100 cursor-pointer" data-id="${c.id}" data-name="${c.full_name}">${c.full_name}</div>`).join('');
+                customerResultsContainer.classList.remove('hidden');
+            }, 300);
+        });
+
+        customerResultsContainer.addEventListener('click', (e) => {
+            if (e.target.dataset.id) {
+                selectedCustomer = { id: e.target.dataset.id, full_name: e.target.dataset.name };
+                customerSearchInput.value = selectedCustomer.full_name;
+                customerIdInput.value = selectedCustomer.id;
+                customerResultsContainer.classList.add('hidden');
+            }
+        });
+
+        // --- Lógica de Filtro y Carga de Datos ---
+        filterButton.addEventListener('click', fetchSalesData);
+        clearFilterButton.addEventListener('click', () => {
+            startDateInput.value = '';
+            endDateInput.value = '';
+            customerSearchInput.value = '';
+            customerIdInput.value = '';
+            selectedCustomer = null;
+            // Simplemente limpiamos la tabla y los totales
+            totalRevenueEl.textContent = 'S/. 0.00';
+            totalOrdersEl.textContent = '0';
+            ordersTbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-500">Filtros limpiados. Selecciona un rango de fechas para empezar.</td></tr>`;
+        });
+
+        async function fetchSalesData() {
+            const startDate = startDateInput.value;
+            const endDate = endDateInput.value;
+            const customerId = customerIdInput.value;
+
+            if (!startDate || !endDate) {
+                // Si las fechas están vacías, no hacemos la petición y mostramos el mensaje inicial.
+                ordersTbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-500">Selecciona un rango de fechas para empezar.</td></tr>`;
+                return;
+            }
+
+            loader.classList.remove('hidden');
+            ordersTbody.innerHTML = '';
+
+            let query = `startDate=${startDate}&endDate=${endDate}`;
+            if (customerId) {
+                query += `&customerId=${customerId}`;
+            }
+
+            try {
+                const response = await fetch(`/api/reports/sales?${query}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('Error al cargar el reporte.');
+
+                const data = await response.json();
+                renderReport(data);
+
+            } catch (error) {
+                console.error(error);
+                ordersTbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-red-500">Error al cargar los datos.</td></tr>`;
+            } finally {
+                loader.classList.add('hidden');
+            }
+        }
+
+        function renderReport(data) {
+            totalRevenueEl.textContent = `S/. ${parseFloat(data.totalRevenue).toFixed(2)}`;
+            totalOrdersEl.textContent = data.totalOrders;
+
+            if (data.orders.length === 0) {
+                ordersTbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-500">No se encontraron ventas para los filtros seleccionados.</td></tr>`;
+                return;
+            }
+
+            ordersTbody.innerHTML = data.orders.map(order => {
+                const itemsList = order.orderItems.map(item => `<li>${item.quantity}x ${item.product.name}</li>`).join('');
+                return `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${new Date(order.timestamp).toLocaleDateString('es-PE')}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${order.customer?.full_name || 'Cliente no encontrado'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500"><ul class="list-disc list-inside">${itemsList}</ul></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900">S/. ${parseFloat(order.total).toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${order.payment_method || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${order.user?.username || 'Cajero no encontrado'}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Inicializar fechas por defecto al cargar la página
+        window.onload = () => {
+            // Corrección: Usar toLocaleDateString con el formato 'en-CA' (YYYY-MM-DD)
+            // para obtener la fecha local correcta, evitando problemas de zona horaria.
+            const today = new Date().toLocaleDateString('en-CA');
+
+            startDateInput.value = today;
+            endDateInput.value = today;
+            fetchSalesData(); // Llamar a la función para cargar los datos del día actual automáticamente
+        };
+    </script>
+</body>
+</html>

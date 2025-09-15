@@ -6,10 +6,12 @@ module.exports = (sequelize, DataTypes) => {
   class Order extends Model {
     static associate(models) {
       Order.belongsTo(models.User, { foreignKey: 'user_id', as: 'user' });
+      Order.belongsTo(models.Customer, { foreignKey: 'customer_id', as: 'customer' });
       Order.hasMany(models.OrderItem, { foreignKey: 'order_id', as: 'orderItems' });
     }
   }
   Order.init({
+    customer_id: DataTypes.INTEGER,
     customer_name: DataTypes.STRING,
     total: {
       type: DataTypes.DECIMAL(10, 2),

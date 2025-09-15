@@ -218,10 +218,30 @@ app.get('/api/categories', verifyToken, checkRole(['admin', 'cashier']), async (
     }
 });
 
+// --- Customer Management ---
+app.get('/api/customers', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
+    const { search } = req.query;
+    try {
+        const customers = await db.Customer.findAll({
+            where: {
+                full_name: {
+                    [Op.like]: `%${search}%`
+                }
+            },
+            limit: 10
+        });
+        res.json(customers);
+    } catch (error) {
+        console.error("Error al buscar clientes:", error);
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
 // --- Orders ---
 // Recibir un nuevo pedido
 app.post('/api/orders', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
-    const { customerName, items, total, paymentMethod, notes } = req.body;
+    // MODIFICADO: Ahora recibimos customerId o customerName para crear uno nuevo.
+    const { customerId, customerName, items, total, paymentMethod, notes } = req.body;
     const userId = req.user.id;
     const t = await db.sequelize.transaction();
     try {
@@ -233,6 +253,21 @@ app.post('/api/orders', verifyToken, checkRole(['admin', 'cashier']), async (req
         if (closureStatus && closureStatus.status === 'closed') {
             // Si el día está cerrado, se rechaza el pedido con un error claro.
             return res.status(403).json({ message: 'El día ya ha sido cerrado. No se pueden registrar nuevos pedidos.' });
+        }
+
+        // Lógica para obtener o crear el cliente
+        let finalCustomerId;
+        if (customerId) {
+            finalCustomerId = customerId;
+        } else if (customerName) {
+            const [customer, created] = await db.Customer.findOrCreate({
+                where: { full_name: customerName },
+                defaults: { full_name: customerName },
+                transaction: t
+            });
+            finalCustomerId = customer.id;
+        } else {
+            return res.status(400).json({ message: 'Se requiere un cliente para el pedido.' });
         }
 
         // 1. Obtener información de stock y recetas
@@ -286,12 +321,13 @@ app.post('/api/orders', verifyToken, checkRole(['admin', 'cashier']), async (req
         // La diferencia entre un pedido para llevar y una cuenta abierta es si 'paymentMethod' es nulo.
         const status = 'pending';
         const order = await db.Order.create({
-            customer_name: customerName,
+            customer_id: finalCustomerId, // Usamos el ID del cliente
+            customer_name: customerName, // Mantenemos el nombre para acceso rápido si se desea
             total,
             payment_method: paymentMethod,
             status: status,
             notes,
-            user_id: userId // Añadir el ID del usuario que crea la orden
+            user_id: userId
         }, { transaction: t });
 
         // 4. Insertar items y actualizar stock
@@ -305,7 +341,7 @@ app.post('/api/orders', verifyToken, checkRole(['admin', 'cashier']), async (req
         const orderForKitchen = {
             ...req.body,
             id: order.id,
-            customer_name: customerName, // Estandarizamos a snake_case como en la DB
+            customer_name: customerName,
             timestamp: new Date().toISOString() // Usamos la hora del servidor para mayor precisión
         };
 
@@ -371,6 +407,66 @@ app.put('/api/orders/:id', verifyToken, checkRole(['admin', 'cashier']), async (
         }
     } catch (error) {
         console.error(`Error al actualizar el pedido ${id}:`, error);
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+// Anular una orden (Admin)
+app.put('/api/orders/:id/cancel', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { id } = req.params;
+    const t = await db.sequelize.transaction();
+
+    try {
+        const order = await db.Order.findByPk(id, {
+            include: [{ model: db.OrderItem, as: 'orderItems' }],
+            transaction: t
+        });
+
+        if (!order) {
+            await t.rollback();
+            return res.status(404).json({ message: 'Pedido no encontrado.' });
+        }
+
+        if (order.status === 'cancelled') {
+            await t.rollback();
+            return res.status(400).json({ message: 'Este pedido ya ha sido anulado.' });
+        }
+
+        // 1. Revertir el stock
+        const productIds = order.orderItems.map(item => item.product_id);
+        const products = await db.Product.findAll({ where: { id: productIds }, transaction: t, lock: true });
+        const recipes = await db.ProductIngredient.findAll({ where: { product_id: productIds }, transaction: t });
+        const ingredientIds = [...new Set(recipes.map(r => r.ingredient_id))];
+        let ingredients = [];
+        if (ingredientIds.length > 0) {
+            ingredients = await db.Ingredient.findAll({ where: { id: ingredientIds }, transaction: t, lock: true });
+        }
+
+        const stockUpdates = [];
+        for (const item of order.orderItems) {
+            const product = products.find(p => p.id === item.product_id);
+            if (product.stock_type === 'SIMPLE') {
+                stockUpdates.push(product.increment('stock', { by: item.quantity, transaction: t }));
+            } else { // COMPOUND
+                const productRecipe = recipes.filter(r => r.product_id === product.id);
+                for (const recipeItem of productRecipe) {
+                    const ingredient = ingredients.find(i => i.id === recipeItem.ingredient_id);
+                    if (ingredient) {
+                        const requiredQuantity = recipeItem.quantity_required * item.quantity;
+                        stockUpdates.push(ingredient.increment('stock', { by: requiredQuantity, transaction: t }));
+                    }
+                }
+            }
+        }
+        await Promise.all(stockUpdates);
+
+        // 2. Actualizar el estado de la orden
+        await order.update({ status: 'cancelled' }, { transaction: t });
+        await t.commit();
+        res.status(200).json({ message: 'Pedido anulado y stock restaurado exitosamente.' });
+    } catch (error) {
+        await t.rollback();
+        console.error(`Error al anular el pedido ${id}:`, error);
         res.status(500).send('Error interno del servidor');
     }
 });
@@ -500,7 +596,12 @@ app.get('/api/dashboard/data', verifyToken, checkRole(['admin', 'cashier', 'kitc
 
         const todaysOrders = await db.Order.findAll({
             where: whereClause,
-            order: [['timestamp', 'DESC']]
+            include: [{
+                model: db.User,
+                as: 'user',
+                attributes: ['username', 'full_name'] // Traemos solo los datos necesarios
+            }],
+            order: [['timestamp', 'DESC']],
         });
 
         res.json({
@@ -856,6 +957,66 @@ app.post('/api/reports/regenerate', verifyToken, checkRole(['admin']), async (re
     } catch (error) {
         console.error("Error al regenerar el reporte PDF:", error);
         res.status(500).send('Error interno al regenerar el reporte');
+    }
+});
+
+// --- Sales Report Route ---
+app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
+    const { startDate, endDate, customerId } = req.query;
+    const { role, id: userId } = req.user;
+
+    if (!startDate || !endDate) {
+        return res.status(400).json({ message: 'Se requieren fechas de inicio y fin.' });
+    }
+
+    try {
+        const whereClause = {
+            timestamp: {
+                [Op.between]: [`${startDate} 00:00:00`, `${endDate} 23:59:59`]
+            },
+            status: { [Op.in]: ['paid', 'completed'] } // Solo ventas concretadas
+        };
+
+        if (customerId) {
+            whereClause.customer_id = customerId;
+        }
+
+        // Si el rol es 'cashier', solo puede ver sus propias ventas.
+        if (role === 'cashier') {
+            whereClause.user_id = userId;
+        }
+
+        const orders = await db.Order.findAll({
+            where: whereClause,
+            include: [
+                {
+                    model: db.Customer,
+                    as: 'customer',
+                    attributes: ['full_name'],
+                    required: false // Esto convierte el JOIN en un LEFT JOIN
+                },
+                {
+                    model: db.User,
+                    as: 'user',
+                    attributes: ['username'],
+                    required: false // Esto convierte el JOIN en un LEFT JOIN
+                },
+                {
+                    model: db.OrderItem,
+                    as: 'orderItems',
+                    attributes: ['quantity'],
+                    include: [{ model: db.Product, as: 'product', attributes: ['name'] }]
+                }
+            ],
+            order: [['timestamp', 'DESC']]
+        });
+
+        const totalRevenue = orders.reduce((sum, order) => sum + parseFloat(order.total), 0);
+
+        res.json({ orders, totalOrders: orders.length, totalRevenue });
+    } catch (error) {
+        console.error("Error al generar reporte de ventas:", error);
+        res.status(500).send('Error interno del servidor');
     }
 });
 
@@ -1309,6 +1470,10 @@ app.get('/manage-users.html', (req, res) => {
 
 app.get('/login.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'login.html'));
+});
+
+app.get('/sales-report.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'sales-report.html'));
 });
 
 // =================================================================

@@ -68,14 +68,20 @@
         <header class="text-center">
             <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-2">Comanda Cangre Burger</h1>
             <p class="text-gray-500 mb-4">¡Un mordisco, y... BOOM! de sabor</p>
-            <div class="relative">
-                <input type="text" id="customer-name" placeholder="Nombre del Cliente"
+            <!-- CAMBIO: Buscador de clientes -->
+            <div class="relative" id="customer-search-container">
+                <input type="text" id="customer-search" placeholder="Buscar o crear cliente..."
                        class="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all duration-300">
                 <!-- Icono de usuario -->
                 <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
+                <div id="customer-results" class="hidden absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg">
+                    <!-- Los resultados de la búsqueda aparecerán aquí -->
+                </div>
             </div>
+            <input type="hidden" id="customer-id">
+            <input type="hidden" id="customer-name">
         </header>
 
         <!-- Contenedor de las secciones del menú -->
@@ -159,6 +165,9 @@
 
         // Variable para almacenar el nombre del usuario logueado
         let currentUsername = '';
+
+        // Variable para el cliente seleccionado
+        let selectedCustomer = null;
 
         // Determinar el modo de operación desde la URL
         let orderMode = new URLSearchParams(window.location.search).get('mode') || 'pickup';
@@ -411,10 +420,11 @@
 
         // Event listener para el botón de "Realizar Pedido"
         document.getElementById('place-order-button').addEventListener('click', () => {
-            const customerName = document.getElementById('customer-name').value.trim();
-            if (!customerName) {
-                showToast('El nombre del cliente es obligatorio.', 'error');
-                document.getElementById('customer-name').focus();
+            // Ahora verificamos el objeto selectedCustomer
+            const customerSearchInput = document.getElementById('customer-search').value.trim();
+            if (!selectedCustomer && !customerSearchInput) {
+                showToast('Debes seleccionar o crear un cliente.', 'error');
+                document.getElementById('customer-search').focus();
                 return;
             }
 
@@ -435,8 +445,10 @@
 
             // Genera el resumen del pedido
             let summaryHtml = '';
-            if (customerName) {
-                summaryHtml += `<p><strong>Cliente:</strong> ${customerName}</p><hr class="my-2 border-gray-200">`;
+            // Usamos el nombre del cliente seleccionado o el texto del input
+            const finalCustomerName = selectedCustomer ? selectedCustomer.full_name : customerSearchInput;
+            if (finalCustomerName) {
+                summaryHtml += `<p><strong>Cliente:</strong> ${finalCustomerName}</p><hr class="my-2 border-gray-200">`;
             }
 
             summaryHtml += '<h4 class="font-bold text-lg mb-2">Productos:</h4>';            
@@ -486,8 +498,8 @@
             const openAccountBtn = document.getElementById('open-account-button');
             const confirmOrderBtn = document.getElementById('confirm-order-button');
             const addToAccountBtn = document.getElementById('add-to-account-button');
-            const paymentMethodsContainer = document.getElementById('payment-methods').parentElement;
-            const customerNameInput = document.getElementById('customer-name');
+            const paymentMethodsContainer = document.getElementById('payment-methods').parentElement; // Se mantiene
+            const customerSearchContainer = document.getElementById('customer-search-container');
             const pageTitle = document.querySelector('header h1');
 
             if (orderMode === 'salon') {
@@ -498,8 +510,8 @@
                 paymentMethodsContainer.classList.remove('hidden');
             } else if (orderMode === 'add_items') {
                 pageTitle.innerText = 'Añadir a Cuenta';
-                customerNameInput.value = accountName;
-                customerNameInput.disabled = true;
+                document.getElementById('customer-search').value = accountName;
+                document.getElementById('customer-search').disabled = true;
                 addToAccountBtn.classList.remove('hidden');
                 paymentMethodsContainer.classList.add('hidden');
                 // Ocultar el botón de ir al dashboard para evitar confusiones
@@ -513,8 +525,10 @@
 
         // Event listener para el botón de confirmación final
         document.getElementById('confirm-order-button').addEventListener('click', async () => {
-            const customerName = document.getElementById('customer-name').value.trim();
             const selectedPaymentMethod = document.querySelector('input[name="payment"]:checked')?.value;
+            // Ya no se necesita el nombre del cliente aquí, se obtiene del estado global
+            // const customerName = document.getElementById('customer-name').value.trim();
+
             if (!selectedPaymentMethod) {
                 showToast('Por favor, seleccione un método de pago.', 'error');
                 return;
@@ -554,18 +568,25 @@
         });
 
         async function confirmOrder(isPaid) {
-            const customerName = document.getElementById('customer-name').value.trim();
+            const customerSearchInput = document.getElementById('customer-search').value.trim();
+            const customerPayload = {};
+            if (selectedCustomer) {
+                customerPayload.customerId = selectedCustomer.id;
+                customerPayload.customerName = selectedCustomer.full_name;
+            } else {
+                customerPayload.customerName = customerSearchInput;
+            }
+
             const orderNotes = document.getElementById('order-notes').value;
             const selectedPaymentMethod = isPaid ? document.querySelector('input[name="payment"]:checked')?.value : null;
 
             const orderedItems = cart.map(item => ({ productId: item.productId, name: item.name, quantity: item.quantity, price: parseFloat(item.price), sauces: item.sauces }));
             const total = cart.reduce((sum, item) => sum + (item.quantity * parseFloat(item.price)), 0);
-
             try {
                 const response = await fetch('/api/orders', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ customerName, items: orderedItems, notes: orderNotes, paymentMethod: selectedPaymentMethod, total }),
+                    body: JSON.stringify({ ...customerPayload, items: orderedItems, notes: orderNotes, paymentMethod: selectedPaymentMethod, total }),
                 });
 
                 if (!response.ok) throw new Error((await response.json()).message || 'El servidor rechazó el pedido.');
@@ -621,7 +642,9 @@
 
         function resetOrderForm() {
             cart = [];
-            document.getElementById('customer-name').value = '';
+            document.getElementById('customer-search').value = '';
+            document.getElementById('customer-results').classList.add('hidden');
+            selectedCustomer = null;
             document.getElementById('order-notes').value = '';
             if (currentUsername) {
                 localStorage.removeItem(`cangre_burger_cart_${currentUsername}`); // Limpiar el carrito guardado del usuario
@@ -651,6 +674,8 @@
             loadCartFromLocalStorage(); // Cargar el carrito guardado, si existe
             renderMenuItems(); // Esta función ahora se encarga de todo el renderizado inicial
             calculateTotal();
+            // Añadir listener para el buscador de clientes
+            setupCustomerSearch();
         }
 
         // --- Funciones para la interactividad del Acordeón y Cremas ---
@@ -794,6 +819,48 @@
             const changeDueEl = document.getElementById('change-due');
             const change = cashReceived - total;
             if (changeDueEl) changeDueEl.innerText = `S/. ${change >= 0 ? change.toFixed(2) : '0.00'}`;
+        }
+
+        // --- Lógica para el buscador de clientes ---
+        function setupCustomerSearch() {
+            const searchInput = document.getElementById('customer-search');
+            const resultsContainer = document.getElementById('customer-results');
+            let debounceTimer;
+
+            searchInput.addEventListener('input', () => {
+                clearTimeout(debounceTimer);
+                const query = searchInput.value.trim();
+                
+                // Si se borra el input, reseteamos el cliente seleccionado
+                if (query === '') {
+                    selectedCustomer = null;
+                    resultsContainer.classList.add('hidden');
+                    return;
+                }
+
+                // Si el texto no coincide con el cliente seleccionado, reseteamos
+                if (selectedCustomer && selectedCustomer.full_name !== query) {
+                    selectedCustomer = null;
+                }
+
+                debounceTimer = setTimeout(async () => {
+                    if (query.length < 2) return;
+                    const response = await fetch(`/api/customers?search=${encodeURIComponent(query)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                    const customers = await response.json();
+                    resultsContainer.innerHTML = customers.map(c => `<div class="p-2 hover:bg-gray-100 cursor-pointer" data-id="${c.id}" data-name="${c.full_name}">${c.full_name}</div>`).join('');
+                    resultsContainer.classList.remove('hidden');
+                }, 300);
+            });
+
+            resultsContainer.addEventListener('click', (e) => {
+                if (e.target.dataset.id) {
+                    selectedCustomer = { id: e.target.dataset.id, full_name: e.target.dataset.name };
+                    searchInput.value = selectedCustomer.full_name;
+                    resultsContainer.classList.add('hidden');
+                }
+            });
+
+            document.addEventListener('click', (e) => { if (!document.getElementById('customer-search-container').contains(e.target)) resultsContainer.classList.add('hidden'); });
         }
     </script>
 </body>
