@@ -595,7 +595,16 @@ app.get('/api/dashboard/data', verifyToken, checkRole(['admin', 'cashier', 'kitc
         // MODIFICACIÓN: Excluir pedidos anulados del cálculo de ventas totales.
         const salesWhereClause = { ...whereClause, status: { [Op.not]: 'cancelled' } };
 
-        const totalSales = await db.Order.sum('total', { where: salesWhereClause });
+        // MODIFICACIÓN: Calcular totales por separado para efectivo y otros medios.
+        const totalCashSales = await db.Order.sum('total', {
+            where: { ...salesWhereClause, payment_method: 'Efectivo' }
+        });
+
+        const totalOtherSales = await db.Order.sum('total', {
+            where: { ...salesWhereClause, payment_method: { [Op.not]: 'Efectivo', [Op.ne]: null } }
+        });
+
+        const totalSales = (totalCashSales || 0) + (totalOtherSales || 0);
 
         const todaysOrders = await db.Order.findAll({
             where: whereClause,
@@ -609,7 +618,9 @@ app.get('/api/dashboard/data', verifyToken, checkRole(['admin', 'cashier', 'kitc
 
         res.json({
             totalSales: totalSales || 0,
-            orders: todaysOrders
+            orders: todaysOrders,
+            totalCashSales: totalCashSales || 0,
+            totalOtherSales: totalOtherSales || 0
         });
     } catch (error) {
         console.error("Error al obtener datos del dashboard:", error);
@@ -1023,6 +1034,141 @@ app.post('/api/cashier-session/start', verifyToken, checkRole(['cashier']), asyn
     }
 });
 
+// Cerrar la caja del cajero
+app.post('/api/cashier-session/close', verifyToken, checkRole(['cashier']), async (req, res) => {
+    const { id: userId } = req.user;
+    const { countedAmount } = req.body;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (countedAmount === undefined || countedAmount < 0) {
+        return res.status(400).json({ message: 'El monto contado es requerido.' });
+    }
+
+    try {
+        const session = await db.CashierSession.findOne({
+            where: { user_id: userId, start_time: { [Op.gte]: today } }
+        });
+
+        if (!session) {
+            return res.status(404).json({ message: 'No se encontró una sesión de caja abierta para hoy.' });
+        }
+
+        await session.update({
+            end_amount: countedAmount,
+            // MODIFICACIÓN: Añadir un estado al cierre de caja.
+            // Por defecto, un cierre necesita aprobación del admin.
+            status: 'pending_approval',
+            end_time: new Date()
+        });
+
+        res.status(200).json({ message: 'Caja cerrada exitosamente.' });
+    } catch (error) {
+        res.status(500).send('Error interno al cerrar la caja.');
+    }
+});
+
+// --- Admin Cashier Closure Management ---
+app.get('/api/admin/pending-closures', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { date } = req.query;
+    const targetDateStr = date || new Date().toLocaleDateString('en-CA');
+    const startOfDay = new Date(`${targetDateStr}T00:00:00`);
+
+    try {
+        const pendingSessions = await db.CashierSession.findAll({
+            where: {
+                start_time: { [Op.gte]: startOfDay },
+                status: 'pending_approval'
+            },
+            include: [{ model: db.User, as: 'user', attributes: ['username'] }]
+        });
+        res.json(pendingSessions);
+    } catch (error) {
+        console.error("Error al obtener cierres pendientes:", error);
+        res.status(500).send('Error interno.');
+    }
+});
+
+app.put('/api/admin/closures/:sessionId/approve', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { sessionId } = req.params;
+    try {
+        const session = await db.CashierSession.findByPk(sessionId);
+        if (!session) {
+            return res.status(404).json({ message: 'Sesión de caja no encontrada.' });
+        }
+        if (session.status !== 'pending_approval') {
+            return res.status(400).json({ message: 'Este cierre de caja no está pendiente de aprobación.' });
+        }
+
+        await session.update({ status: 'approved' });
+
+        res.json({ message: 'Cierre de caja aprobado exitosamente.' });
+
+    } catch (error) {
+        console.error("Error al aprobar cierre de caja:", error);
+        res.status(500).send('Error interno.');
+    }
+});
+
+// NUEVO ENDPOINT: Obtener resumen de caja para el modal de cierre
+app.get('/api/cashier-session/summary', verifyToken, checkRole(['cashier']), async (req, res) => {
+    const { date } = req.query;
+    const { id: userId } = req.user;
+    const targetDateStr = date || new Date().toLocaleDateString('en-CA');
+
+    try {
+        // 1. Obtener el monto de inicio de caja
+        const today = new Date(`${targetDateStr}T00:00:00`);
+        const session = await db.CashierSession.findOne({
+            where: { user_id: userId, start_time: { [Op.gte]: today } }
+        });
+        const startAmount = session ? parseFloat(session.start_amount) : 0;
+
+        // 2. Obtener ventas por método de pago del cajero
+        const paymentReport = await db.Order.findAll({
+            attributes: ['payment_method', [db.sequelize.fn('SUM', db.sequelize.col('total')), 'total_revenue']],
+            where: {
+                user_id: userId,
+                payment_method: { [Op.ne]: null },
+                status: { [Op.not]: 'cancelled' },
+                timestamp: { [Op.between]: [`${targetDateStr} 00:00:00`, `${targetDateStr} 23:59:59`] }
+            },
+            group: ['payment_method']
+        });
+
+        // Convertir el reporte a un objeto más fácil de usar y calcular el total de efectivo
+        const salesByPaymentMethod = {};
+        let totalCash = 0;
+        paymentReport.forEach(item => {
+            const method = item.get('payment_method');
+            const revenue = parseFloat(item.get('total_revenue'));
+            salesByPaymentMethod[method] = revenue;
+            if (method === 'Efectivo') {
+                totalCash = revenue;
+            }
+        });
+
+        // 3. Obtener gastos registrados por el cajero
+        const expenses = await db.Expense.sum('amount', {
+            where: {
+                user_id: userId,
+                expense_date: targetDateStr,
+                status: 'approved'
+            }
+        });
+        const totalExpenses = parseFloat(expenses) || 0;
+
+        res.json({
+            startAmount,
+            salesByPaymentMethod, // Enviamos el desglose completo
+            totalCash, // Mantenemos el total de efectivo para el cálculo de caja
+            totalExpenses
+        });
+    } catch (error) {
+        console.error("Error al obtener resumen de caja:", error);
+        res.status(500).send('Error interno al obtener el resumen de caja.');
+    }
+});
 // Generar reporte PDF solo para el cajero
 app.post('/api/reports/cashier-report', verifyToken, checkRole(['cashier']), async (req, res) => {
     const { date } = req.body;
@@ -1037,6 +1183,15 @@ app.post('/api/reports/cashier-report', verifyToken, checkRole(['cashier']), asy
             status: { [Op.not]: 'cancelled' }
         };
 
+        // CORRECCIÓN: Obtener los gastos del día para este cajero.
+        const expensesWhere = {
+            user_id: userId,
+            expense_date: targetDateStr,
+            status: 'approved'
+        };
+        const totalExpenses = await db.Expense.sum('amount', { where: expensesWhere }) || 0;
+
+        // Este total es para el desglose, no afecta el cálculo de caja.
         const totalSales = await db.Order.sum('total', { where }) || 0;
         
         const paymentReport = await db.Order.findAll({
@@ -1057,7 +1212,7 @@ app.post('/api/reports/cashier-report', verifyToken, checkRole(['cashier']), asy
         const startAmount = session ? parseFloat(session.start_amount) : 0;
 
         // 3. Generar PDF (usaremos una versión simplificada de la función de reporte)
-        const cashierReportData = { totalSales, paymentReport, startAmount, targetDateStr };
+        const cashierReportData = { totalSales, paymentReport, startAmount, totalExpenses, targetDateStr };
         generateCashierPdfReport(res, cashierReportData, req.user);
 
     } catch (error) {
@@ -1130,7 +1285,7 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
 });
 
 function generateCashierPdfReport(res, data, user) {
-    const { totalSales, paymentReport, startAmount, targetDateStr } = data;
+    const { totalSales, paymentReport, startAmount, totalExpenses, targetDateStr } = data;
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
 
     const formattedDate = new Date(targetDateStr + 'T12:00:00').toLocaleDateString('es-PE', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -1147,28 +1302,42 @@ function generateCashierPdfReport(res, data, user) {
         .moveDown(2);
 
     // --- Summary Section ---
-    const totalCash = (paymentReport.find(p => p.payment_method === 'Efectivo')?.get('total_revenue') || 0);
-    const expectedInBox = parseFloat(startAmount) + parseFloat(totalCash);
+    const totalCash = (paymentReport.find(p => p.get('payment_method') === 'Efectivo')?.get('total_revenue') || 0);
+    const totalOtherSales = totalSales - totalCash;
+    // MODIFICACIÓN: Restar los gastos del total esperado en caja.
+    const expectedInBox = parseFloat(startAmount) + parseFloat(totalCash) - parseFloat(totalExpenses);
 
-    doc.font('Helvetica-Bold').fontSize(14).text('Resumen de Caja', { underline: true }).moveDown();
+    doc.font('Helvetica-Bold').fontSize(14).text('Resumen de Ventas y Caja', { underline: true }).moveDown();
     doc.font('Helvetica').fontSize(11).fillColor('#374151');
+    doc.text(`Ventas Totales del Día:`, { continued: true }).font('Helvetica-Bold').text(` S/. ${parseFloat(totalSales).toFixed(2)}`, { align: 'right' });
+    doc.font('Helvetica').text(`   - En Efectivo:`, { continued: true }).font('Helvetica-Bold').text(` S/. ${parseFloat(totalCash).toFixed(2)}`, { align: 'right' });
+    doc.font('Helvetica').text(`   - Otros Medios:`, { continued: true }).font('Helvetica-Bold').text(` S/. ${parseFloat(totalOtherSales).toFixed(2)}`, { align: 'right' });
+    doc.moveDown();
+
+    doc.font('Helvetica-Bold').fontSize(12).text('Cálculo de Caja', { underline: true }).moveDown(0.5);
+    doc.font('Helvetica').fontSize(11);
     doc.text(`(+) Monto Inicial en Caja:`, { continued: true }).font('Helvetica-Bold').text(` S/. ${parseFloat(startAmount).toFixed(2)}`, { align: 'right' });
     doc.text(`(+) Ventas en Efectivo:`, { continued: true }).font('Helvetica-Bold').text(` S/. ${parseFloat(totalCash).toFixed(2)}`, { align: 'right' });
+    doc.text(`(-) Gastos Registrados:`, { continued: true }).font('Helvetica-Bold').text(` S/. ${parseFloat(totalExpenses).toFixed(2)}`, { align: 'right' });
     doc.moveDown(0.5).strokeColor('#374151').lineWidth(0.5).moveTo(doc.x, doc.y).lineTo(555, doc.y).stroke().moveDown(0.5);
     doc.font('Helvetica-Bold').fontSize(12).text(`(=) Total Esperado en Caja:`, { continued: true }).text(` S/. ${expectedInBox.toFixed(2)}`, { align: 'right' });
     doc.moveDown(2);
 
     // --- Payment Method Table ---
-    doc.font('Helvetica-Bold').fontSize(14).text('Desglose de Ventas por Método de Pago', { underline: true }).moveDown();
+    doc.font('Helvetica-Bold').fontSize(14).text('Desglose Detallado por Método de Pago', { underline: true }).moveDown();
     const paymentTableTop = doc.y;
     doc.font('Helvetica-Bold').fontSize(10);
     doc.text('Método de Pago', 50, paymentTableTop);
+    doc.text('Nº Trans.', 370, paymentTableTop, { width: 70, align: 'right' });
     doc.text('Total Recaudado', 460, paymentTableTop, { width: 80, align: 'right' });
     doc.moveDown(0.5).strokeColor("#cccccc").lineWidth(0.5).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
     doc.font('Helvetica').fontSize(9);
     paymentReport.forEach(item => {
+        const rowY = doc.y;
         doc.moveDown(0.5);
-        doc.text(item.get('payment_method'), 50, doc.y).text(`S/. ${parseFloat(item.get('total_revenue')).toFixed(2)}`, 460, doc.y, { width: 80, align: 'right' });
+        doc.text(item.get('payment_method'), 50, rowY);
+        doc.text(item.get('transaction_count').toString(), 370, rowY, { width: 70, align: 'right' });
+        doc.text(`S/. ${parseFloat(item.get('total_revenue')).toFixed(2)}`, 460, rowY, { width: 80, align: 'right' });
     });
     doc.moveDown();
     doc.end();
@@ -1435,8 +1604,9 @@ app.get('/api/expenses', verifyToken, checkRole(['admin', 'cashier']), async (re
 app.post('/api/expenses', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     const { description, quantity, unit, amount, category, expense_date } = req.body;
     try {
-        // Si el admin crea un gasto, se aprueba automáticamente.
-        const status = req.user.role === 'admin' ? 'approved' : 'pending';
+        // MODIFICACIÓN: Los gastos de cajeros y admins se aprueban automáticamente.
+        // El admin luego los revisa en el reporte general.
+        const status = 'approved';
 
         await db.Expense.create({
             description,

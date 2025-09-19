@@ -75,11 +75,25 @@
             </div>
 
             <!-- Resumen General -->
-            <section id="summary-section" class="hidden grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            <section id="summary-section" class="hidden grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
                 <div class="bg-white p-6 rounded-2xl shadow-lg">
-                    <h2 class="text-2xl font-semibold text-gray-700 mb-4">Ingresos Totales</h2>
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Ventas en Efectivo</h2>
                     <div class="relative">
-                        <div class="text-5xl font-bold text-amber-600" id="total-sales">S/. 0.00</div>
+                        <div class="text-4xl font-bold text-green-600" id="total-cash-sales">S/. 0.00</div>
+                        <div class="loading-overlay absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center hidden"><p class="text-gray-600 font-semibold">Cargando...</p></div>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Otros Medios de Pago</h2>
+                    <div class="relative">
+                        <div class="text-4xl font-bold text-blue-600" id="total-other-sales">S/. 0.00</div>
+                        <div class="loading-overlay absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center hidden"><p class="text-gray-600 font-semibold">Cargando...</p></div>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-lg md:col-span-1">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Ingreso Total</h2>
+                    <div class="relative">
+                        <div class="text-4xl font-bold text-amber-600" id="total-sales">S/. 0.00</div>
                         <div class="loading-overlay absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center hidden"><p class="text-gray-600 font-semibold">Cargando...</p></div>
                     </div>
                 </div>
@@ -96,9 +110,8 @@
                 <div class="flex justify-between items-center mb-4">
                     <h2 id="product-report-title" class="text-2xl font-semibold text-gray-700">Reporte de Productos Vendidos Hoy</h2>
                     <div id="report-action-buttons" class="flex gap-2 items-center h-10">
-                        <!-- Cashier Button -->
-                        <button id="propose-closure-btn" class="hidden bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-lg">Proponer Cierre de Día</button>
-                        <button id="cashier-report-btn" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Mi Reporte de Caja</button>
+                        <button id="cashier-pdf-report-btn" class="hidden bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg">Mi Reporte PDF</button>
+                        <button id="cashier-report-btn" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Cerrar mi Caja</button>
                         <!-- Admin Closure Buttons -->
                         <button id="approve-closure-btn" class="hidden bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Aprobar Cierre y Reporte</button>
                         <button id="force-closure-btn" class="hidden bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Forzar Cierre y Reporte</button>
@@ -122,6 +135,15 @@
                     <p class="text-gray-600 font-semibold">Cargando...</p>
                 </div>
             </section>
+
+            <!-- (Admin Only) Sección de Aprobación de Cierres de Caja -->
+            <section id="admin-closure-approval-section" class="hidden bg-white p-6 rounded-2xl shadow-lg mt-8">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Cierres de Caja Pendientes de Aprobación</h2>
+                <div id="pending-closures-list" class="space-y-4">
+                    <!-- Los cierres pendientes se cargarán aquí -->
+                </div>
+            </section>
+
 
             <!-- Nueva Sección: Órdenes del Día -->
             <section id="orders-day-section" class="hidden bg-white p-6 rounded-2xl shadow-lg mt-8">
@@ -175,6 +197,30 @@
         </div>
     </div>
 
+    <!-- Modal para Cierre de Caja del Cajero -->
+    <div id="cashier-closure-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-60 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 text-left">
+            <h3 class="text-2xl font-bold text-gray-800 mb-4 text-center">Cierre de Caja</h3>
+            <div id="cashier-closure-summary" class="space-y-2 text-gray-700 p-4 bg-gray-50 rounded-lg">
+                <!-- El resumen se cargará aquí -->
+            </div>
+            <div class="mt-6">
+                <label for="counted-amount" class="block text-sm font-medium text-gray-700">Ingresa el monto total contado en caja:</label>
+                <div class="relative mt-1">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">S/.</div>
+                    <input type="number" id="counted-amount" step="0.01" min="0" required class="w-full p-3 pl-10 text-center text-xl border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+            <div id="cash-difference-section" class="mt-4 text-center font-bold text-lg">
+                <!-- La diferencia se mostrará aquí -->
+            </div>
+            <div class="mt-8 flex justify-end gap-4">
+                <button id="cancel-closure-modal-btn" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancelar</button>
+                <button id="confirm-closure-btn" class="px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700">Confirmar y Cerrar Caja</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const datePicker = document.getElementById('date-picker');
         const viewTodayBtn = document.getElementById('view-today-btn');
@@ -191,8 +237,8 @@
         const forceBtn = document.getElementById('force-closure-btn');
         const regenerateBtn = document.getElementById('regenerate-report-btn');
         const reopenBtn = document.getElementById('reopen-day-btn');
-        const proposeBtn = document.getElementById('propose-closure-btn');
         const cashierReportBtn = document.getElementById('cashier-report-btn');
+        const cashierPdfReportBtn = document.getElementById('cashier-pdf-report-btn');
         const statusPending = document.getElementById('status-pending');
         const statusClosed = document.getElementById('status-closed');
 
@@ -200,6 +246,8 @@
         async function loadDashboardData(date = '') {
             const url = date ? `/api/dashboard/data?date=${date}` : '/api/dashboard/data';
             const totalSalesEl = document.getElementById('total-sales');
+            const totalCashSalesEl = document.getElementById('total-cash-sales');
+            const totalOtherSalesEl = document.getElementById('total-other-sales');
             try {
                 const response = await fetch(url, {
                     headers: {
@@ -212,6 +260,8 @@
                 }
                 const data = await response.json();
                 totalSalesEl.innerText = `S/. ${data.totalSales.toFixed(2)}`;
+                totalCashSalesEl.innerText = `S/. ${data.totalCashSales.toFixed(2)}`;
+                totalOtherSalesEl.innerText = `S/. ${data.totalOtherSales.toFixed(2)}`;
 
             // Esta sección no estaba en la función, la añadimos para renderizar la tabla de órdenes
             const ordersTableBody = document.querySelector('#product-report-section + section table tbody'); // Asumiendo que hay una tabla de órdenes
@@ -487,6 +537,7 @@
                     document.getElementById('product-report-section').classList.remove('hidden');
                     document.getElementById('payment-report-section').classList.remove('hidden');
                     document.getElementById('orders-day-section').classList.remove('hidden');
+                    document.getElementById('admin-closure-approval-section').classList.remove('hidden');
                 }
     
             } catch (e) {
@@ -505,6 +556,7 @@
                 loadDashboardData(selectedDate), // Esta llamada ahora también carga la tabla de órdenes
                 loadStockReport(selectedDate),
                 updateDashboardActions(selectedDate)
+                
             ];
 
             if (userRole === 'admin' || userRole === 'cashier') {
@@ -512,6 +564,10 @@
             }
 
             await Promise.all(dataPromises);
+
+            if (userRole === 'admin') {
+                await loadPendingClosures(selectedDate);
+            }
             
             loadingOverlays.forEach(overlay => overlay.classList.add('hidden'));
 
@@ -534,7 +590,7 @@
 
         async function updateDashboardActions(date) {
             // Hide all buttons and statuses first
-            [approveBtn, forceBtn, regenerateBtn, reopenBtn, proposeBtn, cashierReportBtn, statusPending, statusClosed].forEach(el => el && el.classList.add('hidden'));
+            [approveBtn, forceBtn, regenerateBtn, reopenBtn, cashierReportBtn, cashierPdfReportBtn, statusPending, statusClosed].forEach(el => el && el.classList.add('hidden'));
 
             const today = new Date().toLocaleDateString('en-CA'); // Formato YYYY-MM-DD
             const selectedDate = date || today; // Si no hay fecha, se usa la de hoy.
@@ -566,7 +622,7 @@
                 if (userRole === 'cashier') {
                     if (selectedDate === today && status === 'open') {
                         cashierReportBtn.classList.remove('hidden');
-                        proposeBtn.classList.remove('hidden');
+                        cashierPdfReportBtn.classList.remove('hidden');
                     } else if (status === 'pending_closure') {
                         statusPending.classList.remove('hidden');
                     } else if (status === 'closed') {
@@ -579,8 +635,56 @@
             }
         }
 
-        async function generateCashierReport() {
+        async function loadPendingClosures(date) {
+            const listContainer = document.getElementById('pending-closures-list');
+            try {
+                const response = await fetch(`/api/admin/pending-closures?date=${date}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                if (!response.ok) throw new Error('No se pudieron cargar los cierres pendientes.');
+                const sessions = await response.json();
+
+                if (sessions.length === 0) {
+                    listContainer.innerHTML = '<p class="text-gray-500">No hay cierres de caja pendientes de aprobación para esta fecha.</p>';
+                    return;
+                }
+
+                listContainer.innerHTML = sessions.map(session => {
+                    const difference = parseFloat(session.end_amount) - (parseFloat(session.start_amount) /* + ventas efectivo - gastos */);
+                    // Nota: Para un cálculo de diferencia exacto aquí, necesitaríamos recalcular las ventas y gastos de ese cajero.
+                    // Por ahora, mostramos los montos brutos.
+                    return `
+                        <div class="border p-4 rounded-lg bg-yellow-50">
+                            <div class="flex justify-between items-center">
+                                <p class="font-bold text-lg">${session.user.username}</p>
+                                <button onclick="approveCashierClosure(${session.id})" class="bg-green-600 text-white px-4 py-1 rounded-lg hover:bg-green-700">Aprobar</button>
+                            </div>
+                            <div class="text-sm mt-2 grid grid-cols-3 gap-2">
+                                <p><strong>Inicio:</strong> S/. ${parseFloat(session.start_amount).toFixed(2)}</p>
+                                <p><strong>Contado:</strong> S/. ${parseFloat(session.end_amount).toFixed(2)}</p>
+                                <p><strong>Hora Cierre:</strong> ${new Date(session.end_time).toLocaleTimeString()}</p>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                listContainer.innerHTML = `<p class="text-red-500">${error.message}</p>`;
+            }
+        }
+
+        async function approveCashierClosure(sessionId) {
+            try {
+                const response = await fetch(`/api/admin/closures/${sessionId}/approve`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error((await response.json()).message || 'Error al aprobar.');
+                showToast('Cierre de caja aprobado.');
+                updateAllData();
+            } catch (error) { showToast(error.message, 'error'); }
+        }
+
+        async function generateCashierPdfReport() {
             const selectedDate = datePicker.value;
+            showToast('Generando tu reporte PDF...', 'success');
             try {
                 const response = await fetch('/api/reports/cashier-report', {
                     method: 'POST',
@@ -598,7 +702,10 @@
                 const a = document.createElement('a');
                 a.style.display = 'none';
                 a.href = url;
-                a.download = response.headers.get('Content-Disposition').split('filename=')[1].replace(/"/g, '');
+                // Extraer el nombre del archivo del header Content-Disposition
+                const disposition = response.headers.get('Content-Disposition');
+                const filename = disposition ? disposition.split('filename=')[1].replace(/"/g, '') : 'reporte-cajero.pdf';
+                a.download = filename;
                 document.body.appendChild(a);
                 a.click();
                 window.URL.revokeObjectURL(url);
@@ -607,23 +714,88 @@
             }
         }
 
-        async function proposeClosure() {
-            if (!confirm('¿Está seguro que desea proponer el cierre del día? Esta acción no se puede deshacer.')) return;
-            try {
-                const response = await fetch('/api/reports/propose-closure', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.message || 'No se pudo proponer el cierre.');
-                }
-                showToast('Propuesta de cierre enviada al administrador.');
-                updateAllData(); // Refresh dashboard
-            } catch (error) {
-                console.error('Error al proponer cierre:', error);
-                showToast(error.message, 'error');
+        async function openCashierClosureModal() {
+            const selectedDate = datePicker.value;
+            const modal = document.getElementById('cashier-closure-modal');
+            const summaryContainer = document.getElementById('cashier-closure-summary');
+            const countedAmountInput = document.getElementById('counted-amount');
+            const differenceSection = document.getElementById('cash-difference-section');
+
+            // 1. Obtener los datos para el resumen
+            const reportResponse = await fetch(`/api/cashier-session/summary?date=${selectedDate}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!reportResponse.ok) {
+                showToast('No se pudieron cargar los datos para el cierre.', 'error');
+                return;
             }
+            const reportData = await reportResponse.json();
+
+            // 2. Calcular y mostrar el resumen
+            const { startAmount, salesByPaymentMethod, totalCash, totalExpenses } = reportData;
+            const totalSales = Object.values(salesByPaymentMethod).reduce((sum, amount) => sum + amount, 0);
+            const expectedInBox = startAmount + totalCash - totalExpenses;
+
+            let salesBreakdownHtml = Object.entries(salesByPaymentMethod)
+                .map(([method, amount]) => `<p class="flex justify-between text-sm pl-4"><span>- ${method}:</span> <span>S/. ${amount.toFixed(2)}</span></p>`)
+                .join('');
+
+            summaryContainer.innerHTML = `
+                <p class="flex justify-between font-semibold"><span>Ventas Totales del Día:</span> <span>S/. ${totalSales.toFixed(2)}</span></p>
+                <div class="text-gray-600">${salesBreakdownHtml || '<p class="text-sm pl-4">- Sin ventas registradas.</p>'}</div>
+                <hr class="my-2 border-gray-300">
+                <h4 class="font-semibold text-center text-gray-800">Cálculo de Caja</h4>
+                <p class="flex justify-between"><span>(+) Monto Inicial:</span> <strong>S/. ${parseFloat(startAmount).toFixed(2)}</strong></p>
+                <p class="flex justify-between"><span>(+) Ventas en Efectivo:</span> <strong>S/. ${parseFloat(totalCash).toFixed(2)}</strong></p>
+                <p class="flex justify-between"><span>(-) Gastos Registrados:</span> <strong>S/. ${parseFloat(totalExpenses).toFixed(2)}</strong></p>
+                <hr class="my-1 border-gray-300">
+                <p class="flex justify-between font-bold text-lg"><span>(=) Total Esperado en Caja:</span> <span>S/. ${expectedInBox.toFixed(2)}</span></p>
+            `;
+
+            // 3. Lógica para calcular y mostrar la diferencia en tiempo real
+            countedAmountInput.oninput = () => {
+                const counted = parseFloat(countedAmountInput.value) || 0;
+                const difference = counted - expectedInBox;
+                if (difference === 0) {
+                    differenceSection.innerHTML = `<span class="text-green-600">Caja Cuadrada</span>`;
+                } else if (difference > 0) {
+                    differenceSection.innerHTML = `<span class="text-blue-600">Sobrante: S/. ${difference.toFixed(2)}</span>`;
+                } else {
+                    differenceSection.innerHTML = `<span class="text-red-600">Faltante: S/. ${Math.abs(difference).toFixed(2)}</span>`;
+                }
+            };
+
+            // 4. Mostrar el modal
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            // 5. Lógica de los botones del modal
+            document.getElementById('cancel-closure-modal-btn').onclick = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            };
+
+            document.getElementById('confirm-closure-btn').onclick = async () => {
+                const countedAmount = countedAmountInput.value;
+                if (countedAmount === '') {
+                    showToast('Debes ingresar el monto contado.', 'error');
+                    return;
+                }
+                // Lógica para enviar al backend
+                const closeResponse = await fetch('/api/cashier-session/close', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ countedAmount })
+                });
+                if (closeResponse.ok) {
+                    showToast('Caja cerrada exitosamente.');
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                    updateAllData(); // Actualizar el dashboard
+                } else {
+                    showToast('Error al cerrar la caja.', 'error');
+                }
+            };
         }
 
         async function generateReport() {
@@ -786,8 +958,8 @@
                 window.location.href = '/login.html';
             });
             
-            if (proposeBtn) proposeBtn.addEventListener('click', proposeClosure);
-            if (cashierReportBtn) cashierReportBtn.addEventListener('click', generateCashierReport);
+            if (cashierReportBtn) cashierReportBtn.addEventListener('click', openCashierClosureModal);
+            if (cashierPdfReportBtn) cashierPdfReportBtn.addEventListener('click', generateCashierPdfReport);
             if (approveBtn) approveBtn.addEventListener('click', generateReport);
             if (forceBtn) forceBtn.addEventListener('click', forceClosureReport);
             if (regenerateBtn) regenerateBtn.addEventListener('click', regenerateReport);

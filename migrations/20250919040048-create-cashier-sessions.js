@@ -13,7 +13,7 @@ module.exports = {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'users', // Nombre de la tabla de usuarios
+          model: 'users',
           key: 'id'
         },
         onUpdate: 'CASCADE',
@@ -26,7 +26,15 @@ module.exports = {
       start_time: {
         type: Sequelize.DATE,
         allowNull: false
-      }
+      },
+      end_amount: {
+        type: Sequelize.DECIMAL(10, 2),
+        allowNull: true // Se llena al cerrar la caja
+      },
+      end_time: {
+        type: Sequelize.DATE,
+        allowNull: true // Se llena al cerrar la caja
+      },
       // No necesitamos createdAt/updatedAt porque el modelo no los tiene
     });
   },

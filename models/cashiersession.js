@@ -13,7 +13,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Users',
+        model: 'users', // CORRECCIÓN: El nombre de la tabla es 'users' en minúsculas.
         key: 'id'
       }
     },
@@ -21,7 +21,17 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false
     },
-    start_time: DataTypes.DATE
+    start_time: DataTypes.DATE,
+    end_amount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true
+    },
+    end_time: DataTypes.DATE,
+    status: {
+      type: DataTypes.ENUM('open', 'pending_approval', 'approved'),
+      allowNull: false,
+      defaultValue: 'open'
+    }
   }, {
     sequelize,
     modelName: 'CashierSession',

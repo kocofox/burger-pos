@@ -5,7 +5,7 @@ module.exports = {
     await queryInterface.addColumn('orders', 'customer_id', {
       type: Sequelize.INTEGER,
       references: {
-        model: 'Customers', // Nombre de la tabla de clientes
+        model: 'customers', // CORRECCIÓN: Usar nombre de tabla en minúsculas y plural
         key: 'id',
       },
       onUpdate: 'CASCADE',
