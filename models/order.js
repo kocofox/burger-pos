@@ -29,11 +29,15 @@ module.exports = (sequelize, DataTypes) => {
     timestamp: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW
+    },
+    user_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true
     }
   }, {
     sequelize,
     modelName: 'Order',
-    tableName: 'orders',
+    tableName: 'orders', // Asegurar consistencia
     timestamps: false
   });
   return Order;

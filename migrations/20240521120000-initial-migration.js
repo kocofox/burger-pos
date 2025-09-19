@@ -3,19 +3,19 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
-    await queryInterface.createTable('roles', {
+    await queryInterface.createTable('roles', { // ya es correcto
       id: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },
       name: { type: Sequelize.STRING(50), allowNull: false, unique: true }
     });
 
-    await queryInterface.createTable('users', {
+    await queryInterface.createTable('users', { // ya es correcto
       id: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },
       username: { type: Sequelize.STRING(50), allowNull: false, unique: true },
       password_hash: { type: Sequelize.STRING(255), allowNull: false },
       role_id: { type: Sequelize.INTEGER, references: { model: 'roles', key: 'id' } }
     });
 
-    await queryInterface.createTable('categories', {
+    await queryInterface.createTable('categories', { // ya es correcto
       id: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },
       name: { type: Sequelize.STRING(100), allowNull: false, unique: true },
       is_customizable: { type: Sequelize.BOOLEAN, defaultValue: false },
@@ -23,7 +23,7 @@ module.exports = {
       display_order: { type: Sequelize.INTEGER, defaultValue: 99 }
     });
 
-    await queryInterface.createTable('products', {
+    await queryInterface.createTable('products', { // ya es correcto
       id: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },
       name: { type: Sequelize.STRING(100), allowNull: false },
       price: { type: Sequelize.DECIMAL(10, 2), allowNull: false },
@@ -32,7 +32,7 @@ module.exports = {
       category_id: { type: Sequelize.INTEGER, references: { model: 'categories', key: 'id' } }
     });
 
-    await queryInterface.createTable('orders', {
+    await queryInterface.createTable('orders', { // ya es correcto
       id: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },
       customer_name: { type: Sequelize.STRING(255) },
       total: { type: Sequelize.DECIMAL(10, 2), allowNull: false },
@@ -43,7 +43,7 @@ module.exports = {
       timestamp: { type: Sequelize.DATE, defaultValue: Sequelize.NOW }
     });
 
-    await queryInterface.createTable('order_items', {
+    await queryInterface.createTable('order_items', { // ya es correcto
       id: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },
       order_id: { type: Sequelize.INTEGER, references: { model: 'orders', key: 'id' } },
       product_id: { type: Sequelize.INTEGER, references: { model: 'products', key: 'id' } },
@@ -52,29 +52,29 @@ module.exports = {
       sauces: { type: Sequelize.TEXT }
     });
 
-    await queryInterface.createTable('ingredients', {
+    await queryInterface.createTable('ingredients', { // ya es correcto
       id: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },
       name: { type: Sequelize.STRING(100), allowNull: false, unique: true },
       stock: { type: Sequelize.INTEGER, allowNull: false, defaultValue: 0 }
     });
 
-    await queryInterface.createTable('product_ingredients', {
+    await queryInterface.createTable('product_ingredients', { // ya es correcto
       product_id: { type: Sequelize.INTEGER, primaryKey: true, references: { model: 'products', key: 'id' }, onDelete: 'CASCADE' },
       ingredient_id: { type: Sequelize.INTEGER, primaryKey: true, references: { model: 'ingredients', key: 'id' }, onDelete: 'CASCADE' },
       quantity_required: { type: Sequelize.INTEGER, allowNull: false, defaultValue: 1 }
     });
 
-    await queryInterface.createTable('sauces', {
+    await queryInterface.createTable('sauces', { // ya es correcto
       id: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },
       name: { type: Sequelize.STRING(100), allowNull: false, unique: true }
     });
 
-    await queryInterface.createTable('payment_methods', {
+    await queryInterface.createTable('payment_methods', { // ya es correcto
       id: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },
       name: { type: Sequelize.STRING(50), allowNull: false, unique: true }
     });
 
-    await queryInterface.createTable('daily_closures', {
+    await queryInterface.createTable('daily_closures', { // ya es correcto
       closure_date: { type: Sequelize.DATEONLY, primaryKey: true },
       status: { type: Sequelize.ENUM('open', 'pending_closure', 'closed'), allowNull: false, defaultValue: 'open' },
       proposed_by_user_id: { type: Sequelize.INTEGER, references: { model: 'users', key: 'id' } },
