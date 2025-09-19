@@ -11,12 +11,6 @@
     </style>
 </head>
 <body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
-    <script>
-        const token = localStorage.getItem('cangre_burger_token');
-        if (!token) {
-            window.location.href = '/login.html';
-        }
-    </script>
     <div class="text-center mb-12">
         <h1 class="text-5xl font-bold text-gray-800">Cangre Burger POS</h1>
         <p class="text-xl text-gray-500 mt-2">Bienvenido, ¿qué deseas hacer?</p>
@@ -68,5 +62,76 @@
             <p class="text-gray-500 mt-1">Ver reportes, ventas y estado del día.</p>
         </a>
     </div>
+
+    <!-- Modal para Inicio de Caja -->
+    <div id="start-cash-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-60 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
+            <h3 class="text-2xl font-bold text-gray-800 mt-4">Iniciar Caja</h3>
+            <p class="text-gray-500 my-2">Ingresa el monto inicial de efectivo con el que comienzas tu turno.</p>
+            <form id="start-cash-form" class="mt-4">
+                <label for="start-amount" class="sr-only">Monto Inicial</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">S/.</div>
+                    <input type="number" id="start-amount" step="0.01" min="0" required
+                           class="w-full p-3 pl-10 text-center text-xl border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+                <button type="submit" class="mt-6 w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700">Confirmar e Iniciar Día</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('cangre_burger_token');
+        if (!token) {
+            window.location.href = '/login.html';
+        }
+
+        let userRole = '';
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            userRole = payload.role;
+        } catch (e) {
+            console.error("Token inválido, redirigiendo a login.");
+            localStorage.removeItem('cangre_burger_token');
+            window.location.href = '/login.html';
+        }
+
+        async function checkCashierSession() {
+            if (userRole !== 'cashier') return;
+
+            try {
+                const response = await fetch('/api/cashier-session/status', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('No se pudo verificar el estado de la caja.');
+
+                const data = await response.json();
+                if (!data.hasStarted) {
+                    document.getElementById('start-cash-modal').classList.remove('hidden');
+                    document.getElementById('start-cash-modal').classList.add('flex');
+                }
+            } catch (error) {
+                alert(error.message); // Alertar al usuario si hay un problema
+            }
+        }
+
+        document.getElementById('start-cash-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const startAmount = document.getElementById('start-amount').value;
+            const response = await fetch('/api/cashier-session/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ startAmount })
+            });
+
+            if (response.ok) {
+                document.getElementById('start-cash-modal').classList.add('hidden');
+            } else {
+                alert('Error al iniciar la caja. Inténtalo de nuevo.');
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', checkCashierSession);
+    </script>
 </body>
 </html>

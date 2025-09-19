@@ -711,28 +711,27 @@ app.post('/api/reports/propose-closure', verifyToken, checkRole(['cashier', 'adm
 
 async function getReportData(date) {
     const targetDateStr = date || new Date().toLocaleDateString('en-CA');
-    const where = { 
+    const where = {
         timestamp: { [Op.between]: [`${targetDateStr} 00:00:00`, `${targetDateStr} 23:59:59`] },
         // MODIFICACIÓN: Condición base para excluir pedidos anulados de todos los cálculos.
         status: { [Op.not]: 'cancelled' }
     };
 
-    const totalSales = await db.Order.sum('total', { where }) || 0;
+    const totalSales = await db.Order.sum('total', { where: where }) || 0;
     const productReport = await db.OrderItem.findAll({
         attributes: [[db.sequelize.col('product.name'), 'name'], [db.sequelize.fn('SUM', db.sequelize.col('quantity')), 'total_sold'], [db.sequelize.fn('SUM', db.sequelize.literal('quantity * price_at_time')), 'total_revenue']],
         include: [{
             model: db.Product, as: 'product', attributes: []
         }, {
             // MODIFICACIÓN: El 'where' del include ya contiene el filtro de estado.
-            model: db.Order, as: 'order', attributes: [], where: where
+            model: db.Order, as: 'order', attributes: [], where: where // Usar la cláusula 'where' corregida
         }],
         group: ['product.id', 'product.name'], order: [[db.sequelize.fn('SUM', db.sequelize.col('quantity')), 'DESC']]
     });
     const paymentReport = await db.Order.findAll({
         attributes: ['payment_method', [db.sequelize.fn('COUNT', db.sequelize.col('id')), 'transaction_count'], [db.sequelize.fn('SUM', db.sequelize.col('total')), 'total_revenue']],
         where: {
-            // MODIFICACIÓN: Usamos el 'where' base que ya excluye anulados.
-            ...where, 
+            ...where, // Usar la cláusula 'where' corregida
             payment_method: { [Op.ne]: null }
         }, group: ['payment_method'], order: [[db.sequelize.fn('SUM', db.sequelize.col('total')), 'DESC']]
     });
@@ -975,6 +974,98 @@ app.post('/api/reports/regenerate', verifyToken, checkRole(['admin']), async (re
     }
 });
 
+// --- Cashier Session Management ---
+
+// Verificar si el cajero ya inició su caja hoy
+app.get('/api/cashier-session/status', verifyToken, checkRole(['cashier']), async (req, res) => {
+    const { id: userId } = req.user;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    try {
+        const session = await db.CashierSession.findOne({
+            where: {
+                user_id: userId,
+                start_time: { [Op.gte]: today }
+            }
+        });
+
+        if (session) {
+            res.json({ hasStarted: true, startAmount: session.start_amount });
+        } else {
+            res.json({ hasStarted: false });
+        }
+    } catch (error) {
+        console.error("Error al verificar sesión de caja:", error);
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+// Iniciar la caja del cajero
+app.post('/api/cashier-session/start', verifyToken, checkRole(['cashier']), async (req, res) => {
+    const { id: userId } = req.user;
+    const { startAmount } = req.body;
+
+    if (startAmount === undefined || startAmount < 0) {
+        return res.status(400).json({ message: 'El monto inicial es requerido y debe ser válido.' });
+    }
+
+    try {
+        await db.CashierSession.create({
+            user_id: userId,
+            start_amount: startAmount,
+            start_time: new Date()
+        });
+        res.status(201).json({ message: 'Caja iniciada exitosamente.' });
+    } catch (error) {
+        console.error("Error al iniciar caja:", error);
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+// Generar reporte PDF solo para el cajero
+app.post('/api/reports/cashier-report', verifyToken, checkRole(['cashier']), async (req, res) => {
+    const { date } = req.body;
+    const { id: userId } = req.user;
+    const targetDateStr = date || new Date().toLocaleDateString('en-CA');
+
+    try {
+        // 1. Obtener datos de ventas solo para este cajero
+        const where = {
+            user_id: userId,
+            timestamp: { [Op.between]: [`${targetDateStr} 00:00:00`, `${targetDateStr} 23:59:59`] },
+            status: { [Op.not]: 'cancelled' }
+        };
+
+        const totalSales = await db.Order.sum('total', { where }) || 0;
+        
+        const paymentReport = await db.Order.findAll({
+            attributes: ['payment_method', [db.sequelize.fn('COUNT', db.sequelize.col('id')), 'transaction_count'], [db.sequelize.fn('SUM', db.sequelize.col('total')), 'total_revenue']],
+            where: {
+                ...where,
+                payment_method: { [Op.ne]: null }
+            },
+            group: ['payment_method'],
+            order: [[db.sequelize.fn('SUM', db.sequelize.col('total')), 'DESC']]
+        });
+
+        // 2. Obtener el monto de inicio de caja
+        const today = new Date(`${targetDateStr}T00:00:00`);
+        const session = await db.CashierSession.findOne({
+            where: { user_id: userId, start_time: { [Op.gte]: today } }
+        });
+        const startAmount = session ? parseFloat(session.start_amount) : 0;
+
+        // 3. Generar PDF (usaremos una versión simplificada de la función de reporte)
+        const cashierReportData = { totalSales, paymentReport, startAmount, targetDateStr };
+        generateCashierPdfReport(res, cashierReportData, req.user);
+
+    } catch (error) {
+        console.error("Error al generar reporte de cajero:", error);
+        res.status(500).send('Error interno al generar el reporte');
+    }
+});
+
 // --- Sales Report Route ---
 app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     const { startDate, endDate, customerId } = req.query;
@@ -1037,6 +1128,51 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
         res.status(500).send('Error interno del servidor');
     }
 });
+
+function generateCashierPdfReport(res, data, user) {
+    const { totalSales, paymentReport, startAmount, targetDateStr } = data;
+    const doc = new PDFDocument({ size: 'A4', margin: 40 });
+
+    const formattedDate = new Date(targetDateStr + 'T12:00:00').toLocaleDateString('es-PE', { year: 'numeric', month: 'long', day: 'numeric' });
+    const filename = `Reporte-Caja-${user.username}-${new Date(targetDateStr + 'T12:00:00').toLocaleDateString('es-PE').replace(/\//g, '-')}.pdf`;
+    res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-type', 'application/pdf');
+
+    doc.pipe(res);
+
+    // --- Header ---
+    doc.fillColor('#444444')
+        .fontSize(20).font('Helvetica-Bold').text('Reporte de Caja Personal', { align: 'center' })
+        .fontSize(12).font('Helvetica').text(`Cajero: ${user.username} - ${formattedDate}`, { align: 'center' })
+        .moveDown(2);
+
+    // --- Summary Section ---
+    const totalCash = (paymentReport.find(p => p.payment_method === 'Efectivo')?.get('total_revenue') || 0);
+    const expectedInBox = parseFloat(startAmount) + parseFloat(totalCash);
+
+    doc.font('Helvetica-Bold').fontSize(14).text('Resumen de Caja', { underline: true }).moveDown();
+    doc.font('Helvetica').fontSize(11).fillColor('#374151');
+    doc.text(`(+) Monto Inicial en Caja:`, { continued: true }).font('Helvetica-Bold').text(` S/. ${parseFloat(startAmount).toFixed(2)}`, { align: 'right' });
+    doc.text(`(+) Ventas en Efectivo:`, { continued: true }).font('Helvetica-Bold').text(` S/. ${parseFloat(totalCash).toFixed(2)}`, { align: 'right' });
+    doc.moveDown(0.5).strokeColor('#374151').lineWidth(0.5).moveTo(doc.x, doc.y).lineTo(555, doc.y).stroke().moveDown(0.5);
+    doc.font('Helvetica-Bold').fontSize(12).text(`(=) Total Esperado en Caja:`, { continued: true }).text(` S/. ${expectedInBox.toFixed(2)}`, { align: 'right' });
+    doc.moveDown(2);
+
+    // --- Payment Method Table ---
+    doc.font('Helvetica-Bold').fontSize(14).text('Desglose de Ventas por Método de Pago', { underline: true }).moveDown();
+    const paymentTableTop = doc.y;
+    doc.font('Helvetica-Bold').fontSize(10);
+    doc.text('Método de Pago', 50, paymentTableTop);
+    doc.text('Total Recaudado', 460, paymentTableTop, { width: 80, align: 'right' });
+    doc.moveDown(0.5).strokeColor("#cccccc").lineWidth(0.5).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+    doc.font('Helvetica').fontSize(9);
+    paymentReport.forEach(item => {
+        doc.moveDown(0.5);
+        doc.text(item.get('payment_method'), 50, doc.y).text(`S/. ${parseFloat(item.get('total_revenue')).toFixed(2)}`, 460, doc.y, { width: 80, align: 'right' });
+    });
+    doc.moveDown();
+    doc.end();
+}
 
 // Reopen a closed day (for admins)
 app.post('/api/reports/reopen', verifyToken, checkRole(['admin']), async (req, res) => {
@@ -1572,12 +1708,17 @@ io.on('connection', (socket) => {
     });
 });
 
-db.sequelize.sync()
+// En un entorno de producción, NUNCA se debe usar sync().
+// La base de datos debe ser gestionada a través de migraciones.
+// El servidor simplemente se conecta y asume que la estructura es correcta.
+db.sequelize.authenticate()
     .then(() => {
+        console.log('Conexión a la base de datos establecida exitosamente.');
         server.listen(PORT, () => {
             console.log(`Servidor corriendo en http://localhost:${PORT}`);
             console.log(`Login: http://localhost:${PORT}/login.html`);
         });
-    }).catch(err => {
+    })
+    .catch(err => {
         console.error('No se pudo conectar a la base de datos:', err);
     });

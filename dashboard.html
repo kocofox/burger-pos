@@ -98,6 +98,7 @@
                     <div id="report-action-buttons" class="flex gap-2 items-center h-10">
                         <!-- Cashier Button -->
                         <button id="propose-closure-btn" class="hidden bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-lg">Proponer Cierre de Día</button>
+                        <button id="cashier-report-btn" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Mi Reporte de Caja</button>
                         <!-- Admin Closure Buttons -->
                         <button id="approve-closure-btn" class="hidden bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Aprobar Cierre y Reporte</button>
                         <button id="force-closure-btn" class="hidden bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Forzar Cierre y Reporte</button>
@@ -191,6 +192,7 @@
         const regenerateBtn = document.getElementById('regenerate-report-btn');
         const reopenBtn = document.getElementById('reopen-day-btn');
         const proposeBtn = document.getElementById('propose-closure-btn');
+        const cashierReportBtn = document.getElementById('cashier-report-btn');
         const statusPending = document.getElementById('status-pending');
         const statusClosed = document.getElementById('status-closed');
 
@@ -472,6 +474,7 @@
                     adminMenuItemsContainer.innerHTML += `<a href="/kitchen" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Ir a Cocina</a>`;
                 } else if (userRole === 'cashier') {
                     adminMenuItemsContainer.innerHTML += `<a href="/" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Ir a Comanda</a>`;
+                    adminMenuItemsContainer.innerHTML += `<a href="/index.html" class="block px-4 py-2 text-sm text-blue-600 font-semibold hover:bg-gray-100">Ir al Menú Principal</a>`;
                     adminMenuItemsContainer.innerHTML += `<a href="/accounts.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Cuentas Abiertas</a>`;
                     adminMenuItemsContainer.innerHTML += `<a href="/manage-products.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Gestionar Productos</a>`;
                     adminMenuItemsContainer.innerHTML += `<a href="/manage-expenses.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Registrar Gasto</a>`;
@@ -531,7 +534,7 @@
 
         async function updateDashboardActions(date) {
             // Hide all buttons and statuses first
-            [approveBtn, forceBtn, regenerateBtn, reopenBtn, proposeBtn, statusPending, statusClosed].forEach(el => el && el.classList.add('hidden'));
+            [approveBtn, forceBtn, regenerateBtn, reopenBtn, proposeBtn, cashierReportBtn, statusPending, statusClosed].forEach(el => el && el.classList.add('hidden'));
 
             const today = new Date().toLocaleDateString('en-CA'); // Formato YYYY-MM-DD
             const selectedDate = date || today; // Si no hay fecha, se usa la de hoy.
@@ -562,6 +565,7 @@
                 // Lógica de visibilidad de botones para el Cajero
                 if (userRole === 'cashier') {
                     if (selectedDate === today && status === 'open') {
+                        cashierReportBtn.classList.remove('hidden');
                         proposeBtn.classList.remove('hidden');
                     } else if (status === 'pending_closure') {
                         statusPending.classList.remove('hidden');
@@ -572,6 +576,34 @@
             } catch (error) {
                 console.error('Error updating dashboard actions:', error);
                 showToast('No se pudieron cargar las acciones del dashboard.', 'error');
+            }
+        }
+
+        async function generateCashierReport() {
+            const selectedDate = datePicker.value;
+            try {
+                const response = await fetch('/api/reports/cashier-report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ date: selectedDate })
+                });
+
+                if (!response.ok) throw new Error('Error al generar el reporte de cajero.');
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = response.headers.get('Content-Disposition').split('filename=')[1].replace(/"/g, '');
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            } catch (error) {
+                showToast('No se pudo generar el reporte de caja.', 'error');
             }
         }
 
@@ -755,6 +787,7 @@
             });
             
             if (proposeBtn) proposeBtn.addEventListener('click', proposeClosure);
+            if (cashierReportBtn) cashierReportBtn.addEventListener('click', generateCashierReport);
             if (approveBtn) approveBtn.addEventListener('click', generateReport);
             if (forceBtn) forceBtn.addEventListener('click', forceClosureReport);
             if (regenerateBtn) regenerateBtn.addEventListener('click', regenerateReport);

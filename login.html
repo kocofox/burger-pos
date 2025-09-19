@@ -57,8 +57,11 @@
 
                 localStorage.setItem('cangre_burger_token', data.token);
 
-                // Redirigir a todos los usuarios al dashboard después del login.
-                window.location.href = '/dashboard';
+                // MODIFICACIÓN: Redirigir según el rol del usuario.
+                // El cajero va al menú principal para iniciar su caja.
+                // El admin y otros roles van directamente al dashboard.
+                if (data.role === 'cashier') window.location.href = '/index.html';
+                else window.location.href = '/dashboard';
 
             } catch (error) {
                 errorMessage.textContent = error.message;
