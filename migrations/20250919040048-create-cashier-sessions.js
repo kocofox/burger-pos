@@ -10,14 +10,14 @@ module.exports = {
         type: Sequelize.INTEGER
       },
       user_id: {
-        type: Sequelize.INTEGER.UNSIGNED,
+        type: Sequelize.INTEGER, // CORRECCIÓN: Asegura que el tipo de dato coincida con la PK de la tabla 'users'.
         allowNull: false,
         references: {
           model: 'users', // Asegura que el nombre de la tabla sea 'users' en minúsculas.
           key: 'id'
         },
         onUpdate: 'CASCADE',
-        onDelete: 'SET NULL'
+        onDelete: 'CASCADE' // Cambiado a CASCADE por coherencia con allowNull: false
       },
       start_amount: {
         type: Sequelize.DECIMAL(10, 2),
