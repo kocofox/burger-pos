@@ -781,10 +781,10 @@ function generatePdfReport(res, data, user) {
     const { totalSales, productReport, paymentReport, expensesReport, ingredientsReport, targetDateStr } = data;
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
 
-    const formattedDate = new Date(targetDateStr + 'T12:00:00').toLocaleDateString('es-PE', { year: 'numeric', month: 'long', day: 'numeric' });
-    // Se añade 'T12:00:00' para evitar problemas de zona horaria.
-    // Esto asegura que la fecha en el nombre del archivo siempre coincida con la del reporte.
-    const filename = `Reporte-Ventas-${new Date(targetDateStr + 'T12:00:00').toLocaleDateString('es-PE').replace(/\//g, '-')}.pdf`;
+    // Usamos la opción timeZone para asegurar la consistencia, haciendo el código más claro.
+    const reportDate = new Date(`${targetDateStr}T00:00:00`);
+    const formattedDate = reportDate.toLocaleDateString('es-PE', { timeZone: 'America/Lima', year: 'numeric', month: 'long', day: 'numeric' });
+    const filename = `Reporte-Ventas-${reportDate.toLocaleDateString('es-PE', { timeZone: 'America/Lima' }).replace(/\//g, '-')}.pdf`;
     res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-type', 'application/pdf');
 
@@ -1337,8 +1337,9 @@ function generateCashierPdfReport(res, data, user) {
     const { totalSales, paymentReport, startAmount, totalExpenses, targetDateStr } = data;
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
 
-    const formattedDate = new Date(targetDateStr + 'T12:00:00').toLocaleDateString('es-PE', { year: 'numeric', month: 'long', day: 'numeric' });
-    const filename = `Reporte-Caja-${user.username}-${new Date(targetDateStr + 'T12:00:00').toLocaleDateString('es-PE').replace(/\//g, '-')}.pdf`;
+    const reportDate = new Date(`${targetDateStr}T00:00:00`);
+    const formattedDate = reportDate.toLocaleDateString('es-PE', { timeZone: 'America/Lima', year: 'numeric', month: 'long', day: 'numeric' });
+    const filename = `Reporte-Caja-${user.username}-${reportDate.toLocaleDateString('es-PE', { timeZone: 'America/Lima' }).replace(/\//g, '-')}.pdf`;
     res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-type', 'application/pdf');
 

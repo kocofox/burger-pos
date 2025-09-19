@@ -181,14 +181,21 @@
                 const response = await fetch(`/api/reports/sales?${query}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                if (!response.ok) throw new Error('Error al cargar el reporte.');
+                if (!response.ok) {
+                    // Si la respuesta no es OK, intentamos leer el mensaje de error del cuerpo de la respuesta.
+                    const errorBody = await response.text(); // Usamos .text() por si el error no es un JSON válido.
+                    throw new Error(`Error del servidor: ${response.status} ${response.statusText}. Detalles: ${errorBody}`);
+                }
 
                 const data = await response.json();
                 renderReport(data);
 
             } catch (error) {
-                console.error(error);
-                ordersTbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-red-500">Error al cargar los datos.</td></tr>`;
+                // Ahora el console.error mostrará un mensaje mucho más detallado.
+                console.error("Error detallado al cargar el reporte de ventas:", error);
+                // Mostramos un mensaje de error más específico al usuario si es posible.
+                // El mensaje completo del error se verá en la consola de desarrollador.
+                ordersTbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-red-500">Error al cargar el reporte. Revisa la consola para más detalles.</td></tr>`;
             } finally {
                 loader.classList.add('hidden');
             }
