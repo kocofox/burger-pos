@@ -26,6 +26,14 @@ module.exports = (sequelize, DataTypes) => {
     },
     phone_number: {
       type: DataTypes.STRING
+    },
+    role_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: 'roles', // Nombre de la tabla de roles
+        key: 'id'
+      }
     }
   }, {
     sequelize,
