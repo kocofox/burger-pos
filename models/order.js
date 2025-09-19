@@ -11,7 +11,10 @@ module.exports = (sequelize, DataTypes) => {
     }
   }
   Order.init({
-    customer_id: DataTypes.INTEGER,
+    customer_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true // Permite pedidos sin cliente asociado explícitamente
+    },
     customer_name: DataTypes.STRING,
     total: {
       type: DataTypes.DECIMAL(10, 2),
@@ -20,7 +23,7 @@ module.exports = (sequelize, DataTypes) => {
     notes: DataTypes.TEXT,
     status: {
       type: DataTypes.ENUM('serving', 'pending', 'completed', 'paid', 'cancelled'),
-      defaultValue: 'pending' // El estado por defecto ahora es 'pending'
+      defaultValue: 'pending'
     },
     payment_method: DataTypes.STRING,
     timestamp: {
