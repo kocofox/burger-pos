@@ -368,6 +368,37 @@
             }).join('');
         }
 
+        async function cancelOrder(orderId) {
+            const modal = document.getElementById('confirmation-modal');
+            document.getElementById('modal-title').innerText = 'Anular Pedido';
+            document.getElementById('modal-message').innerText = '¿Estás seguro de que quieres anular este pedido? El stock de los productos será restaurado. Esta acción no se puede deshacer.';
+            const confirmBtn = document.getElementById('modal-confirm-btn');
+            confirmBtn.className = 'px-6 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700';
+            confirmBtn.innerText = 'Sí, Anular';
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            const handleConfirm = async () => {
+                try {
+                    const response = await fetch(`/api/orders/${orderId}/cancel`, {
+                        method: 'PUT',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.message || 'No se pudo anular el pedido.');
+                    
+                    showToast('Pedido anulado y stock restaurado.');
+                    updateAllData(); // Recargar los datos para reflejar el cambio de estado
+                } catch (error) {
+                    showToast(error.message, 'error');
+                } finally {
+                    closeModal();
+                }
+            };
+            confirmBtn.onclick = handleConfirm;
+        }
+
                 async function loadStockReport() {
             try { // Cambiado para apuntar al nuevo endpoint de insumos
                 const response = await fetch('/api/dashboard/ingredient-stock-report', {

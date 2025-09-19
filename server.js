@@ -592,7 +592,10 @@ app.get('/api/dashboard/data', verifyToken, checkRole(['admin', 'cashier', 'kitc
     try {
         const whereClause = buildReportWhereClause(req.user, date).where;
 
-        const totalSales = await db.Order.sum('total', { where: whereClause });
+        // MODIFICACIÓN: Excluir pedidos anulados del cálculo de ventas totales.
+        const salesWhereClause = { ...whereClause, status: { [Op.not]: 'cancelled' } };
+
+        const totalSales = await db.Order.sum('total', { where: salesWhereClause });
 
         const todaysOrders = await db.Order.findAll({
             where: whereClause,
@@ -628,7 +631,10 @@ app.get('/api/dashboard/product-report', verifyToken, checkRole(['admin', 'cashi
             include: [
                 { model: db.Product, as: 'product', attributes: [] }, // Ya no necesitamos traer el objeto anidado
                 { model: db.Order, as: 'order', attributes: [], where: whereClause }
-            ],
+            ], // MODIFICACIÓN: Asegurarse de que los items de pedidos anulados no se cuenten.
+            // Sequelize aplicará el 'where' del include de Order, pero para ser explícitos y seguros,
+            // nos aseguramos que el estado no sea 'cancelled'.
+            where: { '$order.status$': { [Op.not]: 'cancelled' } },
             group: ['product.id'],
             order: [[db.sequelize.fn('SUM', db.sequelize.col('quantity')), 'DESC']]
         });
@@ -645,6 +651,9 @@ app.get('/api/dashboard/payment-report', verifyToken, checkRole(['admin', 'cashi
     try {
         const whereClause = buildReportWhereClause(req.user, date).where;
         whereClause.payment_method = { [Op.ne]: null };
+        
+        // MODIFICACIÓN: Excluir pedidos anulados del reporte de métodos de pago.
+        whereClause.status = { [Op.not]: 'cancelled' };
 
         const report = await db.Order.findAll({
             attributes: ['payment_method',
@@ -702,7 +711,11 @@ app.post('/api/reports/propose-closure', verifyToken, checkRole(['cashier', 'adm
 
 async function getReportData(date) {
     const targetDateStr = date || new Date().toLocaleDateString('en-CA');
-    const where = { timestamp: { [Op.between]: [`${targetDateStr} 00:00:00`, `${targetDateStr} 23:59:59`] } };
+    const where = { 
+        timestamp: { [Op.between]: [`${targetDateStr} 00:00:00`, `${targetDateStr} 23:59:59`] },
+        // MODIFICACIÓN: Condición base para excluir pedidos anulados de todos los cálculos.
+        status: { [Op.not]: 'cancelled' }
+    };
 
     const totalSales = await db.Order.sum('total', { where }) || 0;
     const productReport = await db.OrderItem.findAll({
@@ -710,6 +723,7 @@ async function getReportData(date) {
         include: [{
             model: db.Product, as: 'product', attributes: []
         }, {
+            // MODIFICACIÓN: El 'where' del include ya contiene el filtro de estado.
             model: db.Order, as: 'order', attributes: [], where: where
         }],
         group: ['product.id', 'product.name'], order: [[db.sequelize.fn('SUM', db.sequelize.col('quantity')), 'DESC']]
@@ -717,8 +731,9 @@ async function getReportData(date) {
     const paymentReport = await db.Order.findAll({
         attributes: ['payment_method', [db.sequelize.fn('COUNT', db.sequelize.col('id')), 'transaction_count'], [db.sequelize.fn('SUM', db.sequelize.col('total')), 'total_revenue']],
         where: {
-            ...where, // Aplica el filtro de fecha
-            payment_method: { [Op.ne]: null } // Y también asegura que el método de pago no sea nulo
+            // MODIFICACIÓN: Usamos el 'where' base que ya excluye anulados.
+            ...where, 
+            payment_method: { [Op.ne]: null }
         }, group: ['payment_method'], order: [[db.sequelize.fn('SUM', db.sequelize.col('total')), 'DESC']]
     });
     const expensesReport = await db.Expense.findAll({
@@ -973,8 +988,10 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
         const whereClause = {
             timestamp: {
                 [Op.between]: [`${startDate} 00:00:00`, `${endDate} 23:59:59`]
-            },
-            status: { [Op.in]: ['paid', 'completed'] } // Solo ventas concretadas
+            }
+            // MODIFICACIÓN: Eliminamos el filtro de estado aquí para traer todos los pedidos,
+            // incluidos los anulados, y manejarlos en el frontend.
+            // status: { [Op.in]: ['paid', 'completed'] } 
         };
 
         if (customerId) {
@@ -1011,7 +1028,8 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
             order: [['timestamp', 'DESC']]
         });
 
-        const totalRevenue = orders.reduce((sum, order) => sum + parseFloat(order.total), 0);
+        // MODIFICACIÓN: Calculamos el ingreso total solo de los pedidos que NO están anulados.
+        const totalRevenue = orders.filter(o => o.status !== 'cancelled').reduce((sum, order) => sum + parseFloat(order.total), 0);
 
         res.json({ orders, totalOrders: orders.length, totalRevenue });
     } catch (error) {

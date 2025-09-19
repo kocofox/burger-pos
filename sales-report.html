@@ -205,13 +205,16 @@
 
             ordersTbody.innerHTML = data.orders.map(order => {
                 const itemsList = order.orderItems.map(item => `<li>${item.quantity}x ${item.product.name}</li>`).join('');
+                const isCancelled = order.status === 'cancelled';
+                const rowClass = isCancelled ? 'bg-red-50 text-gray-400 line-through' : 'hover:bg-gray-50';
+
                 return `
-                    <tr class="hover:bg-gray-50">
+                    <tr class="${rowClass}">
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${new Date(order.timestamp).toLocaleDateString('es-PE')}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${order.customer?.full_name || 'Cliente no encontrado'}</td>
                         <td class="px-6 py-4 text-sm text-gray-500"><ul class="list-disc list-inside">${itemsList}</ul></td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900">S/. ${parseFloat(order.total).toFixed(2)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${order.payment_method || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${isCancelled ? 'ANULADO' : (order.payment_method || 'N/A')}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${order.user?.username || 'Cajero no encontrado'}</td>
                     </tr>
                 `;
