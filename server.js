@@ -562,20 +562,39 @@ app.post('/api/accounts/:orderId/items', verifyToken, checkRole(['admin', 'cashi
 });
 
 // --- Dashboard & Reports ---
+
+function getOperationalDayRange(date) {
+    const BUSINESS_DAY_CUTOFF_HOUR = 5; // 5 AM
+    let startOfDay, endOfDay;
+
+    if (date) {
+        const selectedDate = new Date(`${date}T00:00:00`);
+        startOfDay = new Date(selectedDate);
+        startOfDay.setHours(BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0);
+    } else {
+        const now = new Date();
+        startOfDay = new Date(now);
+        startOfDay.setHours(BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0);
+        if (now < startOfDay) {
+            startOfDay.setDate(startOfDay.getDate() - 1);
+        }
+    }
+
+    endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+    endOfDay.setMilliseconds(endOfDay.getMilliseconds() - 1);
+
+    return { start: startOfDay, end: endOfDay };
+}
 function buildReportWhereClause(user, date, tableAlias = '') {
+    const BUSINESS_DAY_CUTOFF_HOUR = 5; // 5 AM. Todas las ventas antes de esta hora pertenecen al día anterior.
     const { role, id: userId } = user;
 
     const whereClause = {};
 
-    if (date) {
-        const startOfDay = new Date(`${date}T00:00:00`);
-        const endOfDay = new Date(`${date}T23:59:59.999`);
-        whereClause.timestamp = { [Op.between]: [startOfDay, endOfDay] };
-    } else {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        whereClause.timestamp = { [Op.gte]: today };
-    }
+    let startOfDay, endOfDay;
+    ({ start: startOfDay, end: endOfDay } = getOperationalDayRange(date));
+    whereClause.timestamp = { [Op.between]: [startOfDay, endOfDay] };
 
     // Si el rol es 'cashier', solo puede ver sus propias ventas.
     // Si es 'admin', no se aplica este filtro para que pueda ver todo.
@@ -989,20 +1008,18 @@ app.post('/api/reports/regenerate', verifyToken, checkRole(['admin']), async (re
 
 // Verificar si el cajero ya inició su caja hoy
 app.get('/api/cashier-session/status', verifyToken, checkRole(['cashier']), async (req, res) => {
+    const { date } = req.query;
     const { id: userId } = req.user;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const targetDateStr = date || new Date().toLocaleDateString('en-CA');
+    const { start, end } = getOperationalDayRange(targetDateStr);
 
     try {
         const session = await db.CashierSession.findOne({
-            where: {
-                user_id: userId,
-                start_time: { [Op.gte]: today }
-            }
+            where: { user_id: userId, start_time: { [Op.between]: [start, end] } }
         });
 
         if (session) {
-            res.json({ hasStarted: true, startAmount: session.start_amount });
+            res.json({ hasStarted: true, startAmount: session.start_amount, status: session.status });
         } else {
             res.json({ hasStarted: false });
         }
@@ -1072,12 +1089,12 @@ app.post('/api/cashier-session/close', verifyToken, checkRole(['cashier']), asyn
 app.get('/api/admin/pending-closures', verifyToken, checkRole(['admin']), async (req, res) => {
     const { date } = req.query;
     const targetDateStr = date || new Date().toLocaleDateString('en-CA');
-    const startOfDay = new Date(`${targetDateStr}T00:00:00`);
+    const { start, end } = getOperationalDayRange(targetDateStr);
 
     try {
         const pendingSessions = await db.CashierSession.findAll({
             where: {
-                start_time: { [Op.gte]: startOfDay },
+                start_time: { [Op.between]: [start, end] },
                 status: 'pending_approval'
             },
             include: [{ model: db.User, as: 'user', attributes: ['username'] }]
@@ -1110,6 +1127,35 @@ app.put('/api/admin/closures/:sessionId/approve', verifyToken, checkRole(['admin
     }
 });
 
+app.get('/api/admin/closures-history', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { startDate, endDate, userId } = req.query;
+    try {
+        const whereClause = {};
+        if (startDate && endDate) {
+            // CORRECCIÓN: El rango de fechas debe ser inclusivo para el día final.
+            const startRange = getOperationalDayRange(startDate).start;
+            const endRange = getOperationalDayRange(endDate).end;
+            whereClause.start_time = { [Op.between]: [startRange, endRange] };
+        }
+        if (userId) {
+            whereClause.user_id = userId;
+        }
+
+        const sessions = await db.CashierSession.findAll({
+            where: whereClause,
+            include: [{
+                model: db.User,
+                as: 'user',
+                attributes: ['username']
+            }],
+            order: [['start_time', 'DESC']]
+        });
+        res.json(sessions);
+    } catch (error) {
+        console.error("Error al obtener historial de cierres:", error);
+        res.status(500).send('Error interno.');
+    }
+});
 // NUEVO ENDPOINT: Obtener resumen de caja para el modal de cierre
 app.get('/api/cashier-session/summary', verifyToken, checkRole(['cashier']), async (req, res) => {
     const { date } = req.query;

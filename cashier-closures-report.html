@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historial de Cierres de Caja - Cangre Burger</title>
+    <link href="/dist/output.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <script>
+        const token = localStorage.getItem('cangre_burger_token');
+        if (!token) window.location.href = '/login.html';
+    </script>
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">Historial de Cierres de Caja</h1>
+                <p class="text-gray-500">Revisa todos los cierres de caja registrados.</p>
+            </div>
+            <a href="/dashboard" class="text-blue-600 hover:underline">&larr; Volver al Dashboard</a>
+        </header>
+
+        <!-- Filtros -->
+        <div class="bg-white p-4 rounded-lg shadow-md mb-6 flex flex-wrap items-center gap-4">
+            <div class="flex-1 min-w-[200px]">
+                <label for="start-date" class="block text-sm font-medium text-gray-700">Fecha Inicio</label>
+                <input type="date" id="start-date" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm">
+            </div>
+            <div class="flex-1 min-w-[200px]">
+                <label for="end-date" class="block text-sm font-medium text-gray-700">Fecha Fin</label>
+                <input type="date" id="end-date" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm">
+            </div>
+            <div class="flex-1 min-w-[200px]">
+                <label for="user-filter" class="block text-sm font-medium text-gray-700">Cajero</label>
+                <select id="user-filter" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm">
+                    <option value="">Todos</option>
+                </select>
+            </div>
+            <div class="self-end">
+                <button id="filter-button" class="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Filtrar</button>
+            </div>
+        </div>
+
+        <!-- Tabla de Resultados -->
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cajero</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Monto Inicial</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Monto Contado</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="closures-tbody" class="bg-white divide-y divide-gray-200">
+                        <!-- Filas se insertarán aquí -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const startDateInput = document.getElementById('start-date');
+        const endDateInput = document.getElementById('end-date');
+        const userFilter = document.getElementById('user-filter');
+        const filterButton = document.getElementById('filter-button');
+        const closuresTbody = document.getElementById('closures-tbody');
+
+        const statusClasses = {
+            pending_approval: 'bg-yellow-100 text-yellow-800',
+            approved: 'bg-green-100 text-green-800',
+            open: 'bg-blue-100 text-blue-800'
+        };
+        const statusText = {
+            pending_approval: 'Pendiente',
+            approved: 'Aprobado',
+            open: 'Abierto'
+        };
+
+        async function loadUsersForFilter() {
+            const response = await fetch('/api/users', { headers: { 'Authorization': `Bearer ${token}` } });
+            const users = await response.json();
+            users.filter(u => u.role.name === 'cashier').forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.id;
+                option.textContent = user.username;
+                userFilter.appendChild(option);
+            });
+        }
+
+        async function fetchClosuresHistory() {
+            const startDate = startDateInput.value;
+            const endDate = endDateInput.value;
+            const userId = userFilter.value;
+
+            let query = `?`;
+            if (startDate) query += `startDate=${startDate}&`;
+            if (endDate) query += `endDate=${endDate}&`;
+            if (userId) query += `userId=${userId}`;
+
+            closuresTbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-gray-500">Cargando...</td></tr>`;
+
+            try {
+                const response = await fetch(`/api/admin/closures-history${query}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('Error al cargar el historial.');
+
+                const data = await response.json();
+                renderHistory(data);
+
+            } catch (error) {
+                closuresTbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-red-500">${error.message}</td></tr>`;
+            }
+        }
+
+        function renderHistory(data) {
+            if (data.length === 0) {
+                closuresTbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-gray-500">No se encontraron registros para los filtros seleccionados.</td></tr>`;
+                return;
+            }
+
+            closuresTbody.innerHTML = data.map(session => {
+                return `
+                    <tr>
+                        <td class="px-4 py-3 text-sm text-gray-900">${new Date(session.start_time).toLocaleDateString('es-PE')}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900">${session.user.username}</td>
+                        <td class="px-4 py-3 text-right text-sm text-gray-500">S/. ${parseFloat(session.start_amount).toFixed(2)}</td>
+                        <td class="px-4 py-3 text-right text-sm text-gray-500">${session.end_amount ? `S/. ${parseFloat(session.end_amount).toFixed(2)}` : 'N/A'}</td>
+                        <td class="px-4 py-3 text-sm">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClasses[session.status] || 'bg-gray-100 text-gray-800'}">
+                                ${statusText[session.status] || session.status}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        window.onload = () => {
+            const today = new Date().toLocaleDateString('en-CA');
+            startDateInput.value = today;
+            endDateInput.value = today;
+            
+            loadUsersForFilter();
+            fetchClosuresHistory();
+
+            filterButton.addEventListener('click', fetchClosuresHistory);
+        };
+    </script>
+</body>
+</html>

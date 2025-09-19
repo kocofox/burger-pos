@@ -223,8 +223,8 @@
 
         // Inicializar fechas por defecto al cargar la página
         window.onload = () => {
-            // Corrección: Usar toLocaleDateString con el formato 'en-CA' (YYYY-MM-DD)
-            // para obtener la fecha local correcta, evitando problemas de zona horaria.
+            // Usar toLocaleDateString con 'en-CA' para obtener el formato YYYY-MM-DD,
+            // que es un estándar ISO y evita la advertencia de deprecación.
             const today = new Date().toLocaleDateString('en-CA');
 
             startDateInput.value = today;

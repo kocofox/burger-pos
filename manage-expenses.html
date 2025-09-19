@@ -115,12 +115,14 @@
             };
 
             expenses.forEach(e => {
-                const formattedDate = new Date(e.expense_date + 'T00:00:00').toLocaleDateString('es-PE');
+                // CORRECCIÓN: Usar el formato YYYY-MM-DD directamente para evitar advertencias.
+                // Se añade 'T00:00:00' para asegurar que la fecha se interprete en la zona horaria local y no como UTC.
+                const formattedDate = new Date(e.expense_date + 'T00:00:00').toLocaleDateString('es-PE', { timeZone: 'America/Lima' });
                 const actionsHtml = userRole === 'admin' && e.status === 'pending'
                     ? `<button onclick="updateExpenseStatus(${e.id}, 'approved')" class="text-green-600 hover:text-green-900">Aprobar</button>
                        <button onclick="updateExpenseStatus(${e.id}, 'rejected')" class="text-red-600 hover:text-red-900">Rechazar</button>`
-                    : `<button onclick='editExpense(${JSON.stringify(e)})' class="text-indigo-600 hover:text-indigo-900">Editar</button>
-                       <button onclick="deleteExpense(${e.id})" class="text-red-600 hover:text-red-900">Eliminar</button>`;
+                    : (userRole === 'admin' ? `<button onclick='editExpense(${JSON.stringify(e)})' class="text-indigo-600 hover:text-indigo-900">Editar</button>
+                       <button onclick="deleteExpense(${e.id})" class="text-red-600 hover:text-red-900">Eliminar</button>` : '');
 
                 tableBody.innerHTML += `
                     <tr>
@@ -155,7 +157,8 @@
             document.getElementById('form-title').innerText = 'Registrar Gasto';
             document.getElementById('expense-form').reset();
             document.getElementById('expense-id').value = '';
-            document.getElementById('expense-date').valueAsDate = new Date();
+            // CORRECCIÓN: Usar toLocaleDateString('en-CA') para obtener el formato YYYY-MM-DD.
+            document.getElementById('expense-date').value = new Date().toLocaleDateString('en-CA');
             document.getElementById('cancel-edit-btn').classList.add('hidden');
         }
 
@@ -237,7 +240,8 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('expense-date').valueAsDate = new Date();
+            // CORRECCIÓN: Usar toLocaleDateString('en-CA') para obtener el formato YYYY-MM-DD.
+            document.getElementById('expense-date').value = new Date().toLocaleDateString('en-CA');
             loadExpenses();
         });
     </script>

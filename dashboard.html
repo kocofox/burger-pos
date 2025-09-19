@@ -512,6 +512,7 @@
                         { href: '/manage-users.html', text: 'Gestionar Usuarios' },
                         { href: '/manage-expenses.html', text: 'Gestionar Gastos' },,
                         { href: '/sales-report.html', text: 'Reporte de Ventas' },
+                        { href: '/cashier-closures-report.html', text: 'Historial de Cierres' },
                         { href: '/accounts.html', text: 'Cuentas Abiertas' }
                     ];
                     adminLinks.unshift({ href: '/', text: 'Ir a Comanda' }); // Añadir al principio del menú
@@ -591,9 +592,19 @@
         async function updateDashboardActions(date) {
             // Hide all buttons and statuses first
             [approveBtn, forceBtn, regenerateBtn, reopenBtn, cashierReportBtn, cashierPdfReportBtn, statusPending, statusClosed].forEach(el => el && el.classList.add('hidden'));
-
-            const today = new Date().toLocaleDateString('en-CA'); // Formato YYYY-MM-DD
-            const selectedDate = date || today; // Si no hay fecha, se usa la de hoy.
+            
+            // Lógica para obtener el "Día Operativo" actual
+            const BUSINESS_DAY_CUTOFF_HOUR = 5;
+            const now = new Date();
+            const today = new Date(now);
+            if (now.getHours() < BUSINESS_DAY_CUTOFF_HOUR) {
+                today.setDate(today.getDate() - 1); // Si son las 3 AM, el día operativo es el de ayer.
+            }
+            const todayStr = today.toLocaleDateString('en-CA'); // Formato YYYY-MM-DD
+            
+            // CORRECCIÓN: Asegurarse de que selectedDate sea siempre una cadena YYYY-MM-DD.
+            // Si 'date' (del datepicker) está vacío, usamos 'todayStr'.
+            const selectedDate = date || todayStr;
 
             try {
                 const response = await fetch(`/api/reports/status?date=${selectedDate}`, {
@@ -603,16 +614,26 @@
                 
                 const { status } = await response.json();
 
+                // Adicionalmente, verificar el estado de la sesión del cajero
+                let cashierSessionStatus = null;
+                if (userRole === 'cashier') {
+                    const sessionStatusResponse = await fetch(`/api/cashier-session/status?date=${selectedDate}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                    if (sessionStatusResponse.ok) {
+                        const sessionData = await sessionStatusResponse.json();
+                        if (sessionData.hasStarted) {
+                            cashierSessionStatus = sessionData.status;
+                        }
+                    }
+                }
+
                 // Lógica de visibilidad de botones para el Administrador
                 if (userRole === 'admin') {
-                    if (status === 'pending_closure') {
+                    if (status === 'pending_closure' && selectedDate === todayStr) {
                         approveBtn.classList.remove('hidden');
                         statusPending.classList.remove('hidden');
-                    } else if (status === 'open' && selectedDate <= today) {
-                        // Solo mostrar "Forzar Cierre" si el día está abierto y no es una fecha futura.
+                    } else if (status === 'open' && selectedDate <= todayStr) {
                         forceBtn.classList.remove('hidden'); 
                     } else if (status === 'closed') {
-                        // Si el día está cerrado, mostrar estas opciones sin importar la fecha.
                         regenerateBtn.classList.remove('hidden');
                         reopenBtn.classList.remove('hidden');
                         statusClosed.classList.remove('hidden');
@@ -620,12 +641,14 @@
                 }
                 // Lógica de visibilidad de botones para el Cajero
                 if (userRole === 'cashier') {
-                    if (selectedDate === today && status === 'open') {
+                    // CORRECCIÓN: Mostrar botones solo si la caja está 'open'.
+                    if (selectedDate === todayStr && status === 'open' && cashierSessionStatus === 'open') {
                         cashierReportBtn.classList.remove('hidden');
                         cashierPdfReportBtn.classList.remove('hidden');
-                    } else if (status === 'pending_closure') {
+                    } else if (cashierSessionStatus === 'pending_approval') {
+                        // Mostrar estado de pendiente si el cajero ya cerró su caja.
                         statusPending.classList.remove('hidden');
-                    } else if (status === 'closed') {
+                    } else if (cashierSessionStatus === 'approved' || status === 'closed') {
                         statusClosed.classList.remove('hidden');
                     }
                 }
@@ -643,7 +666,7 @@
                 const sessions = await response.json();
 
                 if (sessions.length === 0) {
-                    listContainer.innerHTML = '<p class="text-gray-500">No hay cierres de caja pendientes de aprobación para esta fecha.</p>';
+                    listContainer.innerHTML = '<p class="text-gray-500 italic">No hay cierres de caja pendientes de aprobación para esta fecha.</p>';
                     return;
                 }
 
