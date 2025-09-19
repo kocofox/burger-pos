@@ -26,7 +26,7 @@ module.exports = (sequelize, DataTypes) => {
   }, {
     sequelize,
     modelName: 'Customer',
-    tableName: 'customers', // CORRECCIÓN: Especificar explícitamente el nombre de la tabla
+    tableName: 'customers',
     timestamps: true, // createdAt y updatedAt
   });
   return Customer;

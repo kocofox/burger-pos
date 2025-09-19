@@ -1159,14 +1159,15 @@ app.get('/api/admin/closures-history', verifyToken, checkRole(['admin']), async 
 // NUEVO ENDPOINT: Obtener resumen de caja para el modal de cierre
 app.get('/api/cashier-session/summary', verifyToken, checkRole(['cashier']), async (req, res) => {
     const { date } = req.query;
-    const { id: userId } = req.user;
+    const { id: userId, role } = req.user; // Obtenemos el rol también
     const targetDateStr = date || new Date().toLocaleDateString('en-CA');
 
     try {
         // 1. Obtener el monto de inicio de caja
-        const today = new Date(`${targetDateStr}T00:00:00`);
+        const { start, end } = getOperationalDayRange(targetDateStr);
         const session = await db.CashierSession.findOne({
-            where: { user_id: userId, start_time: { [Op.gte]: today } }
+            // Usar el rango operativo para encontrar la sesión correcta
+            where: { user_id: userId, start_time: { [Op.between]: [start, end] } }
         });
         const startAmount = session ? parseFloat(session.start_amount) : 0;
 
@@ -1177,7 +1178,7 @@ app.get('/api/cashier-session/summary', verifyToken, checkRole(['cashier']), asy
                 user_id: userId,
                 payment_method: { [Op.ne]: null },
                 status: { [Op.not]: 'cancelled' },
-                timestamp: { [Op.between]: [`${targetDateStr} 00:00:00`, `${targetDateStr} 23:59:59`] }
+                timestamp: { [Op.between]: [start, end] } // Usar el rango operativo
             },
             group: ['payment_method']
         });
@@ -1278,8 +1279,10 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
 
     try {
         const whereClause = {
+            // MODIFICACIÓN: Usar el rango del día operativo para consistencia con otros reportes.
+            // Esto asegura que las ventas de madrugada se asignen al día correcto.
             timestamp: {
-                [Op.between]: [`${startDate} 00:00:00`, `${endDate} 23:59:59`]
+                [Op.between]: [getOperationalDayRange(startDate).start, getOperationalDayRange(endDate).end]
             }
             // MODIFICACIÓN: Eliminamos el filtro de estado aquí para traer todos los pedidos,
             // incluidos los anulados, y manejarlos en el frontend.
