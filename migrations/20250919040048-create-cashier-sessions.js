@@ -10,10 +10,10 @@ module.exports = {
         type: Sequelize.INTEGER
       },
       user_id: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.INTEGER.UNSIGNED,
         allowNull: false,
         references: {
-          model: 'users',
+          model: 'users', // Asegura que el nombre de la tabla sea 'users' en minúsculas.
           key: 'id'
         },
         onUpdate: 'CASCADE',
