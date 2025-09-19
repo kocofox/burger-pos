@@ -13,7 +13,7 @@ module.exports = {
         type: Sequelize.INTEGER, // CORRECCIÓN: Asegura que el tipo de dato coincida con la PK de la tabla 'users'.
         allowNull: false,
         references: {
-          model: 'users', // Asegura que el nombre de la tabla sea 'users' en minúsculas.
+          model: 'users',
           key: 'id'
         },
         onUpdate: 'CASCADE',

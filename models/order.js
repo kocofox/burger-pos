@@ -11,10 +11,7 @@ module.exports = (sequelize, DataTypes) => {
     }
   }
   Order.init({
-    customer_id: {
-      type: DataTypes.INTEGER,
-      allowNull: true // Permite pedidos sin cliente asociado explícitamente
-    },
+    customer_id: DataTypes.INTEGER,
     customer_name: DataTypes.STRING,
     total: {
       type: DataTypes.DECIMAL(10, 2),
