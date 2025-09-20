@@ -506,11 +506,11 @@
                 if (userRole === 'admin') {
                     const adminLinks = [
                         { href: '/manage-products.html', text: 'Gestionar Productos' },
-                        { href: '/manage-recipes.html', text: 'Gestionar Recetas' },
-                        { href: '/manage-ingredients.html', text: 'Gestionar Insumos' },
-                        { href: '/manage-sauces.html', text: 'Gestionar Cremas' },
-                        { href: '/manage-users.html', text: 'Gestionar Usuarios' },
-                        { href: '/manage-expenses.html', text: 'Gestionar Gastos' },,
+                        { href: '/manage-recipes.html', text: 'Gestionar Recetas' },,
+                        { href: '/manage-ingredients.html', text: 'Gestionar Insumos' },,
+                        { href: '/manage-sauces.html', text: 'Gestionar Cremas' },,
+                        { href: '/manage-users.html', text: 'Gestionar Usuarios' },,
+                        { href: '/manage-expenses.html', text: 'Gestionar Gastos' },
                         { href: '/sales-report.html', text: 'Reporte de Ventas' },
                         { href: '/cashier-closures-report.html', text: 'Historial de Cierres' },
                         { href: '/accounts.html', text: 'Cuentas Abiertas' }
@@ -528,18 +528,25 @@
                     adminMenuItemsContainer.innerHTML += `<a href="/index.html" class="block px-4 py-2 text-sm text-blue-600 font-semibold hover:bg-gray-100">Ir al Menú Principal</a>`;
                     adminMenuItemsContainer.innerHTML += `<a href="/accounts.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Cuentas Abiertas</a>`;
                     adminMenuItemsContainer.innerHTML += `<a href="/manage-products.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Gestionar Productos</a>`;
-                    adminMenuItemsContainer.innerHTML += `<a href="/manage-expenses.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Registrar Gasto</a>`;
-                    // CORRECCIÓN: El reporte de ventas solo es para admin y cashier.
+                    adminMenuItemsContainer.innerHTML += `<a href="/manage-expenses.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Registrar Gasto</a>`;                    // CORRECCIÓN: El reporte de ventas solo es para admin y cashier.
+                    // El enlace al reporte de ventas es visible para los cajeros.
                     adminMenuItemsContainer.innerHTML += `<a href="/sales-report.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Reporte de Ventas</a>`;
                 }
     
-                // Mostrar secciones relevantes para admin y cajero
+                // Lógica de visibilidad de secciones por rol
                 if (userRole === 'admin' || userRole === 'cashier') {
                     document.getElementById('summary-section').classList.remove('hidden');
                     document.getElementById('product-report-section').classList.remove('hidden');
                     document.getElementById('payment-report-section').classList.remove('hidden');
                     document.getElementById('orders-day-section').classList.remove('hidden');
+                }
+
+                if (userRole === 'admin') {
+                    // Solo el admin ve la sección de aprobación de cierres
                     document.getElementById('admin-closure-approval-section').classList.remove('hidden');
+                } else {
+                    // Ocultar para otros roles para evitar confusiones
+                    document.getElementById('admin-closure-approval-section').classList.add('hidden');
                 }
     
             } catch (e) {

@@ -1443,6 +1443,12 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
         return res.status(400).json({ message: 'Se requieren fechas de inicio y fin.' });
     }
 
+    // Logging de inicio de la petición para depuración
+    console.log(`[LOG] Generando reporte de ventas para el usuario ${req.user.username} (rol: ${role}) con filtros:`, {
+        startDate,
+        endDate,
+        customerId: customerId || 'Todos'
+    });
     try {
         const whereClause = {
             // MODIFICACIÓN: Usar el rango del día operativo para consistencia con otros reportes.
@@ -2035,7 +2041,8 @@ function verifyToken(req, res, next) {
         const bearerToken = bearerHeader.split(' ')[1];
         jwt.verify(bearerToken, process.env.JWT_SECRET, (err, authData) => {
             if (err) {
-                return res.sendStatus(403); // Token inválido
+                // CORRECCIÓN: Un token inválido o expirado debe devolver 401 Unauthorized, no 403 Forbidden.
+                return res.sendStatus(401);
             }
             req.user = authData;
             next();
