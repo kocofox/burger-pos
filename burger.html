@@ -845,10 +845,18 @@
 
                 debounceTimer = setTimeout(async () => {
                     if (query.length < 2) return;
-                    const response = await fetch(`/api/customers?search=${encodeURIComponent(query)}`, { headers: { 'Authorization': `Bearer ${token}` } });
-                    const customers = await response.json();
-                    resultsContainer.innerHTML = customers.map(c => `<div class="p-2 hover:bg-gray-100 cursor-pointer" data-id="${c.id}" data-name="${c.full_name}">${c.full_name}</div>`).join('');
-                    resultsContainer.classList.remove('hidden');
+                    try {
+                        const response = await fetch(`/api/customers?search=${encodeURIComponent(query)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                        if (!response.ok) throw new Error('Error del servidor al buscar clientes.');
+                        
+                        const customers = await response.json();
+                        // Asegurarse de que customers es un array antes de usar .map()
+                        resultsContainer.innerHTML = Array.isArray(customers) ? customers.map(c => `<div class="p-2 hover:bg-gray-100 cursor-pointer" data-id="${c.id}" data-name="${c.full_name}">${c.full_name}</div>`).join('') : '';
+                        resultsContainer.classList.remove('hidden');
+                    } catch (error) {
+                        console.error(error);
+                        resultsContainer.classList.add('hidden'); // Ocultar si hay error
+                    }
                 }, 300);
             });
 

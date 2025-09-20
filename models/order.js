@@ -37,7 +37,7 @@ module.exports = (sequelize, DataTypes) => {
   }, {
     sequelize,
     modelName: 'Order',
-    tableName: 'orders', // Asegurar consistencia
+    tableName: 'orders',
     timestamps: false
   });
   return Order;

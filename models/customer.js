@@ -26,7 +26,7 @@ module.exports = (sequelize, DataTypes) => {
   }, {
     sequelize,
     modelName: 'Customer',
-    tableName: 'customers',
+    tableName: 'customers', // Asegurar que el nombre de la tabla sea en minúsculas
     timestamps: true, // createdAt y updatedAt
   });
   return Customer;

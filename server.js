@@ -1467,7 +1467,9 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
 
         // Si el rol es 'cashier', solo puede ver sus propias ventas.
         if (role === 'cashier') {
-            whereClause.user_id = userId;
+            // CORRECCIÓN: Especificar el modelo para evitar ambigüedad en la consulta con JOINs.
+            // Se usa '$Order.user_id$' para referirse a la columna 'user_id' de la tabla 'orders'.
+            whereClause['$Order.user_id$'] = userId;
         }
 
         const orders = await db.Order.findAll({
