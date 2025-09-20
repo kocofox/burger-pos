@@ -1489,7 +1489,12 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
                     model: db.OrderItem,
                     as: 'orderItems',
                     attributes: ['quantity'],
-                    include: [{ model: db.Product, as: 'product', attributes: ['name'] }]
+                    // CORRECCIÓN: Añadir required: false para que sea un LEFT JOIN.
+                    // Esto previene errores si un OrderItem apunta a un producto que fue eliminado.
+                    include: [
+                        { model: db.Product, as: 'product', attributes: ['name'], required: false }
+                    ],
+                    required: false // Asegura que se devuelvan pedidos incluso si no tienen items.
                 }
             ],
             order: [['timestamp', 'DESC']]
