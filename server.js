@@ -1503,6 +1503,7 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
         // Logging mejorado
         console.error("Error detallado en GET /api/reports/sales:", {
             message: error.message,
+            originalError: error.original, // Esto mostrará el error crudo de la base de datos
             stack: error.stack,
             query: req.query
         });
