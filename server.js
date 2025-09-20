@@ -65,8 +65,12 @@ app.get('/api/menu', async (req, res) => {
 
         res.json(flatProducts);
     } catch (error) {
-        console.error("Error al leer el menú:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/menu:", {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno del servidor al obtener el menú.' });
     }
 });
 
@@ -76,8 +80,12 @@ app.get('/api/ingredients', verifyToken, checkRole(['admin']), async (req, res) 
         const ingredients = await db.Ingredient.findAll({ order: [['name', 'ASC']] });
         res.json(ingredients);
     } catch (error) {
-        console.error("Error al leer los insumos:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/ingredients:", {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno del servidor al obtener insumos.' });
     }
 });
 
@@ -93,7 +101,12 @@ app.post('/api/ingredients', verifyToken, checkRole(['admin']), async (req, res)
         if (error.name === 'SequelizeUniqueConstraintError') {
             return res.status(409).json({ message: 'Ya existe un insumo con ese nombre.' });
         }
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en POST /api/ingredients:", {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno del servidor al crear insumo.' });
     }
 });
 
@@ -110,11 +123,15 @@ app.put('/api/ingredients/:id', verifyToken, checkRole(['admin']), async (req, r
         }
         res.status(200).json({ message: 'Insumo actualizado.' });
     } catch (error) {
-        console.error("Error al actualizar insumo:", error);
         if (error.name === 'SequelizeUniqueConstraintError') {
             return res.status(409).json({ message: 'Ya existe otro insumo con ese nombre.' });
         }
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error(`Error detallado en PUT /api/ingredients/${id}:`, {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno del servidor al actualizar insumo.' });
     }
 });
 
@@ -130,7 +147,12 @@ app.delete('/api/ingredients/:id', verifyToken, checkRole(['admin']), async (req
         if (error.name === 'SequelizeForeignKeyConstraintError') {
             return res.status(400).json({ message: 'No se puede eliminar el insumo porque está siendo usado en una o más recetas.' });
         }
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error(`Error detallado en DELETE /api/ingredients/${id}:`, {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno del servidor al eliminar insumo.' });
     }
 });
 
@@ -141,8 +163,12 @@ app.get('/api/sauces', async (req, res) => {
         const sauces = await db.Sauce.findAll({ order: [['name', 'ASC']] });
         res.json(sauces); // Devolvemos el objeto completo para la gestión
     } catch (error) {
-        console.error("Error al leer las cremas:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/sauces:", {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno del servidor al obtener cremas.' });
     }
 });
 
@@ -158,7 +184,12 @@ app.post('/api/sauces', verifyToken, checkRole(['admin']), async (req, res) => {
         if (error.name === 'SequelizeUniqueConstraintError') {
             return res.status(409).json({ message: 'Ya existe una crema con ese nombre.' });
         }
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en POST /api/sauces:", {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno del servidor al crear crema.' });
     }
 });
 
@@ -170,7 +201,12 @@ app.put('/api/sauces/:id', verifyToken, checkRole(['admin']), async (req, res) =
         if (affectedRows === 0) return res.status(404).json({ message: 'Crema no encontrada.' });
         res.status(200).json({ message: 'Crema actualizada.' });
     } catch (error) {
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error(`Error detallado en PUT /api/sauces/${id}:`, {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno del servidor al actualizar crema.' });
     }
 });
 
@@ -181,7 +217,12 @@ app.delete('/api/sauces/:id', verifyToken, checkRole(['admin']), async (req, res
         if (affectedRows === 0) return res.status(404).json({ message: 'Crema no encontrada.' });
         res.status(200).json({ message: 'Crema eliminada.' });
     } catch (error) {
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error(`Error detallado en DELETE /api/sauces/${id}:`, {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno del servidor al eliminar crema.' });
     }
 });
 
@@ -191,8 +232,12 @@ app.get('/api/payment-methods', async (req, res) => {
         const methods = await db.PaymentMethod.findAll({ order: [['id', 'ASC']] });
         res.json(methods.map(m => m.name));
     } catch (error) {
-        console.error("Error al leer los métodos de pago:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/payment-methods:", {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno del servidor al obtener métodos de pago.' });
     }
 });
 
@@ -202,8 +247,12 @@ app.get('/api/categories/ordered', async (req, res) => {
         const categories = await db.Category.findAll({ order: [['display_order', 'ASC'], ['name', 'ASC']] });
         res.json(categories);
     } catch (error) {
-        console.error("Error al leer las categorías ordenadas:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/categories/ordered:", {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno del servidor al obtener categorías.' });
     }
 });
 
@@ -213,8 +262,12 @@ app.get('/api/categories', verifyToken, checkRole(['admin', 'cashier']), async (
         const categories = await db.Category.findAll({ order: [['display_order', 'ASC'], ['name', 'ASC']] });
         res.json(categories);
     } catch (error) {
-        console.error("Error al leer las categorías:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/categories:", {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno del servidor al obtener categorías.' });
     }
 });
 
@@ -232,8 +285,13 @@ app.get('/api/customers', verifyToken, checkRole(['admin', 'cashier']), async (r
         });
         res.json(customers);
     } catch (error) {
-        console.error("Error al buscar clientes:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/customers:", {
+            message: error.message,
+            stack: error.stack,
+            query: req.query
+        });
+        res.status(500).json({ message: 'Error interno del servidor al buscar clientes.' });
     }
 });
 
@@ -353,8 +411,13 @@ app.post('/api/orders', verifyToken, checkRole(['admin', 'cashier']), async (req
 
     } catch (error) {
         await t.rollback();
-        console.error("Error al guardar el pedido:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en POST /api/orders:", {
+            message: error.message,
+            stack: error.stack,
+            requestBody: req.body
+        });
+        res.status(500).json({ message: 'Error interno del servidor al guardar el pedido.' });
     }
 });
 
@@ -383,8 +446,12 @@ app.get('/api/orders/pending', verifyToken, checkRole(['admin', 'kitchen', 'cash
         res.json(ordersWithItems);
 
     } catch (error) {
-        console.error("Error al obtener órdenes pendientes:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/orders/pending:", {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno del servidor al obtener órdenes pendientes.' });
     }
 });
 
@@ -406,8 +473,13 @@ app.put('/api/orders/:id', verifyToken, checkRole(['admin', 'cashier']), async (
             return res.status(400).json({ message: 'Actualización no permitida. Use esta ruta solo para pagar cuentas.' });
         }
     } catch (error) {
-        console.error(`Error al actualizar el pedido ${id}:`, error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error(`Error detallado en PUT /api/orders/${id}:`, {
+            message: error.message,
+            stack: error.stack,
+            requestBody: req.body
+        });
+        res.status(500).json({ message: 'Error interno del servidor al actualizar el pedido.' });
     }
 });
 
@@ -466,8 +538,12 @@ app.put('/api/orders/:id/cancel', verifyToken, checkRole(['admin']), async (req,
         res.status(200).json({ message: 'Pedido anulado y stock restaurado exitosamente.' });
     } catch (error) {
         await t.rollback();
-        console.error(`Error al anular el pedido ${id}:`, error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error(`Error detallado en PUT /api/orders/${id}/cancel:`, {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno del servidor al anular el pedido.' });
     }
 });
 
@@ -488,8 +564,12 @@ app.get('/api/accounts/open', verifyToken, checkRole(['admin', 'cashier']), asyn
         });
         res.json(openAccounts);
     } catch (error) {
-        console.error("Error al obtener cuentas abiertas:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/accounts/open:", {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno del servidor al obtener cuentas abiertas.' });
     }
 });
 
@@ -556,8 +636,13 @@ app.post('/api/accounts/:orderId/items', verifyToken, checkRole(['admin', 'cashi
         res.status(200).json({ message: 'Items añadidos y enviados a cocina.' });
     } catch (error) {
         await t.rollback();
-        console.error("Error al añadir items:", error);
-        res.status(500).send('Error al añadir items.');
+        // Logging mejorado
+        console.error(`Error detallado en POST /api/accounts/${orderId}/items:`, {
+            message: error.message,
+            stack: error.stack,
+            requestBody: req.body
+        });
+        res.status(500).json({ message: 'Error interno del servidor al añadir items.' });
     }
 });
 
@@ -568,14 +653,16 @@ function getOperationalDayRange(date) {
     let startOfDay, endOfDay;
 
     if (date) {
-        const selectedDate = new Date(`${date}T00:00:00`);
-        startOfDay = new Date(selectedDate);
-        startOfDay.setHours(BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0);
+        // Para fechas específicas, el día operativo comienza a las 5 AM de esa fecha.
+        // Esta lógica es más directa y clara.
+        startOfDay = new Date(`${date}T05:00:00`);
     } else {
+        // Para la fecha actual, determinar el día operativo actual.
         const now = new Date();
         startOfDay = new Date(now);
         startOfDay.setHours(BUSINESS_DAY_CUTOFF_HOUR, 0, 0, 0);
         if (now < startOfDay) {
+            // Si es antes de las 5 AM, pertenece al día operativo anterior.
             startOfDay.setDate(startOfDay.getDate() - 1);
         }
     }
@@ -587,17 +674,14 @@ function getOperationalDayRange(date) {
     return { start: startOfDay, end: endOfDay };
 }
 function buildReportWhereClause(user, date, tableAlias = '') {
-    const BUSINESS_DAY_CUTOFF_HOUR = 5; // 5 AM. Todas las ventas antes de esta hora pertenecen al día anterior.
     const { role, id: userId } = user;
-
     const whereClause = {};
 
-    let startOfDay, endOfDay;
-    ({ start: startOfDay, end: endOfDay } = getOperationalDayRange(date));
-    whereClause.timestamp = { [Op.between]: [startOfDay, endOfDay] };
+    // Obtener el rango del día operativo CORRECTAMENTE
+    const { start, end } = getOperationalDayRange(date);
+    whereClause.timestamp = { [Op.between]: [start, end] };
 
-    // Si el rol es 'cashier', solo puede ver sus propias ventas.
-    // Si es 'admin', no se aplica este filtro para que pueda ver todo.
+    // Si el rol es 'cashier', solo puede ver sus propias ventas
     if (role === 'cashier') {
         whereClause.user_id = userId;
     }
@@ -642,8 +726,13 @@ app.get('/api/dashboard/data', verifyToken, checkRole(['admin', 'cashier', 'kitc
             totalOtherSales: totalOtherSales || 0
         });
     } catch (error) {
-        console.error("Error al obtener datos del dashboard:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/dashboard/data:", {
+            message: error.message,
+            stack: error.stack,
+            query: req.query
+        });
+        res.status(500).json({ message: 'Error interno del servidor al obtener datos del dashboard.' });
     }
 });
 
@@ -670,8 +759,13 @@ app.get('/api/dashboard/product-report', verifyToken, checkRole(['admin', 'cashi
         });
         res.json(report);
     } catch (error) {
-        console.error("Error al generar reporte de productos:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/dashboard/product-report:", {
+            message: error.message,
+            stack: error.stack,
+            query: req.query
+        });
+        res.status(500).json({ message: 'Error interno del servidor al generar reporte de productos.' });
     }
 });
 
@@ -696,8 +790,13 @@ app.get('/api/dashboard/payment-report', verifyToken, checkRole(['admin', 'cashi
         });
         res.json(report);
     } catch (error) {
-        console.error("Error al generar reporte de pagos:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/dashboard/payment-report:", {
+            message: error.message,
+            stack: error.stack,
+            query: req.query
+        });
+        res.status(500).json({ message: 'Error interno del servidor al generar reporte de pagos.' });
     }
 });
 
@@ -714,8 +813,13 @@ app.get('/api/reports/status', verifyToken, checkRole(['admin', 'cashier', 'kitc
             res.json({ status: 'open' }); // Default to open if no record exists
         }
     } catch (error) {
-        console.error("Error fetching closure status:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/reports/status:", {
+            message: error.message,
+            stack: error.stack,
+            query: req.query
+        });
+        res.status(500).json({ message: 'Error interno del servidor al obtener estado de cierre.' });
     }
 });
 
@@ -734,16 +838,22 @@ app.post('/api/reports/propose-closure', verifyToken, checkRole(['cashier', 'adm
         }
         res.status(200).json({ message: 'Propuesta de cierre enviada.' });
     } catch (error) {
-        console.error("Error al proponer cierre:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en POST /api/reports/propose-closure:", {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno del servidor al proponer cierre.' });
     }
 });
 
 async function getReportData(date) {
     const targetDateStr = date || new Date().toLocaleDateString('en-CA');
+    const { start, end } = getOperationalDayRange(targetDateStr); // Usar la función centralizada
+
     const where = {
-        timestamp: { [Op.between]: [`${targetDateStr} 00:00:00`, `${targetDateStr} 23:59:59`] },
-        // MODIFICACIÓN: Condición base para excluir pedidos anulados de todos los cálculos.
+        // Usar el rango del día operativo para consistencia total
+        timestamp: { [Op.between]: [start, end] },
         status: { [Op.not]: 'cancelled' }
     };
 
@@ -965,8 +1075,13 @@ app.post('/api/reports/approve-closure', verifyToken, checkRole(['admin']), asyn
         generatePdfReport(res, reportData, req.user);
 
     } catch (error) {
-        console.error("Error al aprobar cierre y generar reporte:", error);
-        res.status(500).send('Error interno al generar el reporte');
+        // Logging mejorado
+        console.error("Error detallado en POST /api/reports/approve-closure:", {
+            message: error.message,
+            stack: error.stack,
+            requestBody: req.body
+        });
+        res.status(500).json({ message: 'Error interno al generar el reporte.' });
     }
 });
 
@@ -986,7 +1101,13 @@ app.post('/api/reports/force-closure', verifyToken, checkRole(['admin']), async 
         const reportData = await getReportData(date);
         generatePdfReport(res, reportData, req.user);
     } catch (error) {
-        res.status(500).send('Error interno al forzar el cierre');
+        // Logging mejorado
+        console.error("Error detallado en POST /api/reports/force-closure:", {
+            message: error.message,
+            stack: error.stack,
+            requestBody: req.body
+        });
+        res.status(500).json({ message: 'Error interno al forzar el cierre.' });
     }
 });
 
@@ -999,8 +1120,13 @@ app.post('/api/reports/regenerate', verifyToken, checkRole(['admin']), async (re
         generatePdfReport(res, reportData, req.user);
 
     } catch (error) {
-        console.error("Error al regenerar el reporte PDF:", error);
-        res.status(500).send('Error interno al regenerar el reporte');
+        // Logging mejorado
+        console.error("Error detallado en POST /api/reports/regenerate:", {
+            message: error.message,
+            stack: error.stack,
+            requestBody: req.body
+        });
+        res.status(500).json({ message: 'Error interno al regenerar el reporte.' });
     }
 });
 
@@ -1024,8 +1150,13 @@ app.get('/api/cashier-session/status', verifyToken, checkRole(['cashier']), asyn
             res.json({ hasStarted: false });
         }
     } catch (error) {
-        console.error("Error al verificar sesión de caja:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/cashier-session/status:", {
+            message: error.message,
+            stack: error.stack,
+            query: req.query
+        });
+        res.status(500).json({ message: 'Error interno del servidor al verificar sesión de caja.' });
     }
 });
 
@@ -1046,8 +1177,13 @@ app.post('/api/cashier-session/start', verifyToken, checkRole(['cashier']), asyn
         });
         res.status(201).json({ message: 'Caja iniciada exitosamente.' });
     } catch (error) {
-        console.error("Error al iniciar caja:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en POST /api/cashier-session/start:", {
+            message: error.message,
+            stack: error.stack,
+            requestBody: req.body
+        });
+        res.status(500).json({ message: 'Error interno del servidor al iniciar caja.' });
     }
 });
 
@@ -1081,7 +1217,13 @@ app.post('/api/cashier-session/close', verifyToken, checkRole(['cashier']), asyn
 
         res.status(200).json({ message: 'Caja cerrada exitosamente.' });
     } catch (error) {
-        res.status(500).send('Error interno al cerrar la caja.');
+        // Logging mejorado
+        console.error("Error detallado en POST /api/cashier-session/close:", {
+            message: error.message,
+            stack: error.stack,
+            requestBody: req.body
+        });
+        res.status(500).json({ message: 'Error interno al cerrar la caja.' });
     }
 });
 
@@ -1101,8 +1243,13 @@ app.get('/api/admin/pending-closures', verifyToken, checkRole(['admin']), async 
         });
         res.json(pendingSessions);
     } catch (error) {
-        console.error("Error al obtener cierres pendientes:", error);
-        res.status(500).send('Error interno.');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/admin/pending-closures:", {
+            message: error.message,
+            stack: error.stack,
+            query: req.query
+        });
+        res.status(500).json({ message: 'Error interno al obtener cierres pendientes.' });
     }
 });
 
@@ -1122,8 +1269,12 @@ app.put('/api/admin/closures/:sessionId/approve', verifyToken, checkRole(['admin
         res.json({ message: 'Cierre de caja aprobado exitosamente.' });
 
     } catch (error) {
-        console.error("Error al aprobar cierre de caja:", error);
-        res.status(500).send('Error interno.');
+        // Logging mejorado
+        console.error(`Error detallado en PUT /api/admin/closures/${sessionId}/approve:`, {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno al aprobar cierre de caja.' });
     }
 });
 
@@ -1152,8 +1303,13 @@ app.get('/api/admin/closures-history', verifyToken, checkRole(['admin']), async 
         });
         res.json(sessions);
     } catch (error) {
-        console.error("Error al obtener historial de cierres:", error);
-        res.status(500).send('Error interno.');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/admin/closures-history:", {
+            message: error.message,
+            stack: error.stack,
+            query: req.query
+        });
+        res.status(500).json({ message: 'Error interno al obtener historial de cierres.' });
     }
 });
 // NUEVO ENDPOINT: Obtener resumen de caja para el modal de cierre
@@ -1212,8 +1368,13 @@ app.get('/api/cashier-session/summary', verifyToken, checkRole(['cashier']), asy
             totalExpenses
         });
     } catch (error) {
-        console.error("Error al obtener resumen de caja:", error);
-        res.status(500).send('Error interno al obtener el resumen de caja.');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/cashier-session/summary:", {
+            message: error.message,
+            stack: error.stack,
+            query: req.query
+        });
+        res.status(500).json({ message: 'Error interno al obtener el resumen de caja.' });
     }
 });
 // Generar reporte PDF solo para el cajero
@@ -1263,8 +1424,13 @@ app.post('/api/reports/cashier-report', verifyToken, checkRole(['cashier']), asy
         generateCashierPdfReport(res, cashierReportData, req.user);
 
     } catch (error) {
-        console.error("Error al generar reporte de cajero:", error);
-        res.status(500).send('Error interno al generar el reporte');
+        // Logging mejorado
+        console.error("Error detallado en POST /api/reports/cashier-report:", {
+            message: error.message,
+            stack: error.stack,
+            requestBody: req.body
+        });
+        res.status(500).json({ message: 'Error interno al generar el reporte.' });
     }
 });
 
@@ -1328,8 +1494,13 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
 
         res.json({ orders, totalOrders: orders.length, totalRevenue });
     } catch (error) {
-        console.error("Error al generar reporte de ventas:", error);
-        res.status(500).send('Error interno del servidor');
+        // Logging mejorado
+        console.error("Error detallado en GET /api/reports/sales:", {
+            message: error.message,
+            stack: error.stack,
+            query: req.query
+        });
+        res.status(500).json({ message: 'Error interno del servidor al generar reporte de ventas.' });
     }
 });
 
@@ -1407,8 +1578,13 @@ app.post('/api/reports/reopen', verifyToken, checkRole(['admin']), async (req, r
             res.status(400).json({ message: 'El día no está cerrado o no se encontró.' });
         }
     } catch (error) {
-        console.error("Error al reabrir el día:", error);
-        res.status(500).send('Error interno al reabrir el día');
+        // Logging mejorado
+        console.error("Error detallado en POST /api/reports/reopen:", {
+            message: error.message,
+            stack: error.stack,
+            requestBody: req.body
+        });
+        res.status(500).json({ message: 'Error interno al reabrir el día.' });
     }
 });
 
