@@ -263,11 +263,7 @@
                 totalCashSalesEl.innerText = `S/. ${data.totalCashSales.toFixed(2)}`;
                 totalOtherSalesEl.innerText = `S/. ${data.totalOtherSales.toFixed(2)}`;
 
-            // Esta sección no estaba en la función, la añadimos para renderizar la tabla de órdenes
-            const ordersTableBody = document.querySelector('#product-report-section + section table tbody'); // Asumiendo que hay una tabla de órdenes
-            if (ordersTableBody) {
                 renderOrdersTable(data.orders);
-            }
 
             } catch (error) {
                 console.error('Error al cargar datos del dashboard:', error);
