@@ -100,7 +100,7 @@
             if (userRole !== 'cashier') return;
 
             try {
-                const response = await fetch('/api/cashier-session/status', {
+                const response = await fetch('/api/cashier-session/status', { // Esta ruta ahora usa el día operativo correctamente
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (!response.ok) throw new Error('No se pudo verificar el estado de la caja.');

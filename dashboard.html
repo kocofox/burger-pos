@@ -72,6 +72,21 @@
                     <input type="date" id="date-picker" class="p-2 border border-gray-300 rounded-lg">
                     <button id="view-today-btn" class="ml-2 px-4 py-2 bg-gray-200 text-sm font-medium text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">Ver Hoy</button>
                 </div>
+                <!-- Contenedor para botones de acción del Admin -->
+                <div id="admin-actions-container" class="hidden flex-shrink-0 flex gap-2 items-center h-10">
+                    <button id="approve-closure-btn" class="hidden bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Aprobar Cierre y Reporte</button>
+                    <button id="force-closure-btn" class="hidden bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Forzar Cierre y Reporte</button>
+                    <button id="regenerate-report-btn" class="hidden bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Regenerar Reporte</button>
+                    <button id="reopen-day-btn" class="hidden bg-yellow-500 hover:bg-yellow-600 text-gray-800 font-bold py-2 px-4 rounded-lg">Reabrir Día</button>
+                    <!-- Status Texts -->
+                    <div id="status-pending" class="hidden flex items-center text-sm font-semibold text-yellow-700"><span>Pendiente de Aprobación</span></div>
+                    <div id="status-closed" class="hidden flex items-center text-sm font-semibold text-green-700"><span>Día Cerrado</span></div>
+                </div>
+                <!-- Contenedor para botones de acción del cajero -->
+                <div id="cashier-actions-container" class="hidden flex-shrink-0 flex gap-2 items-center h-10">
+                    <button id="cashier-pdf-report-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg">Mi Reporte PDF</button>
+                    <button id="cashier-report-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Cerrar mi Caja</button>
+                </div>
             </div>
 
             <!-- Resumen General -->
@@ -105,37 +120,6 @@
                 </div>
             </section>
 
-            <!-- Sección de Reporte de Productos -->
-            <section id="product-report-section" class="hidden relative bg-white p-6 rounded-2xl shadow-lg mt-8">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 id="product-report-title" class="text-2xl font-semibold text-gray-700">Reporte de Productos Vendidos Hoy</h2>
-                    <div id="report-action-buttons" class="flex gap-2 items-center h-10">
-                        <button id="cashier-pdf-report-btn" class="hidden bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg">Mi Reporte PDF</button>
-                        <button id="cashier-report-btn" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Cerrar mi Caja</button>
-                        <!-- Admin Closure Buttons -->
-                        <button id="approve-closure-btn" class="hidden bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Aprobar Cierre y Reporte</button>
-                        <button id="force-closure-btn" class="hidden bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Forzar Cierre y Reporte</button>
-                        <button id="regenerate-report-btn" class="hidden bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Regenerar Reporte</button>
-                        <button id="reopen-day-btn" class="hidden bg-yellow-500 hover:bg-yellow-600 text-gray-800 font-bold py-2 px-4 rounded-lg">Reabrir Día</button>
-                        <!-- Status Texts -->
-                        <div id="status-pending" class="hidden flex items-center text-sm font-semibold text-yellow-700">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg>
-                            <span>Pendiente de Aprobación</span>
-                        </div>
-                        <div id="status-closed" class="hidden flex items-center text-sm font-semibold text-green-700">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" /></svg>
-                            <span>Día Cerrado</span>
-                        </div>
-                    </div>
-                </div>
-                <div id="product-report-list" class="space-y-2">
-                    <!-- El reporte de productos se cargará aquí. Ahora es responsive. -->
-                </div>
-                <div class="loading-overlay absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center hidden">
-                    <p class="text-gray-600 font-semibold">Cargando...</p>
-                </div>
-            </section>
-
             <!-- (Admin Only) Sección de Aprobación de Cierres de Caja -->
             <section id="admin-closure-approval-section" class="hidden bg-white p-6 rounded-2xl shadow-lg mt-8">
                 <h2 class="text-2xl font-semibold text-gray-700 mb-4">Cierres de Caja Pendientes de Aprobación</h2>
@@ -144,40 +128,56 @@
                 </div>
             </section>
 
-
-            <!-- Nueva Sección: Órdenes del Día -->
-            <section id="orders-day-section" class="hidden bg-white p-6 rounded-2xl shadow-lg mt-8">
-                <h2 id="orders-day-title" class="text-2xl font-semibold text-gray-700 mb-4">Pedidos del Día</h2>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hora</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
-                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cajero</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="orders-table-body" class="bg-white divide-y divide-gray-200"></tbody>
-                    </table>
+            <!-- NUEVA SECCIÓN UNIFICADA: Actividad del Día (Pedidos y Productos) -->
+            <section id="activity-day-section" class="hidden bg-white p-6 rounded-2xl shadow-lg mt-8">
+                <h2 id="activity-day-title" class="text-2xl font-semibold text-gray-700 mb-4">Actividad del Día</h2>
+                <!-- Pestañas -->
+                <div class="mb-4">
+                    <nav class="flex space-x-2 bg-gray-200 p-1 rounded-lg" aria-label="Tabs">
+                        <!-- El estado activo tendrá 'bg-white text-blue-600 shadow-sm', el inactivo 'text-gray-600 hover:bg-gray-300' -->
+                        <button id="tab-orders" class="flex-1 whitespace-nowrap py-2 px-4 rounded-md font-medium text-sm transition-colors duration-200 bg-white text-blue-600 shadow-sm">Pedidos</button>
+                        <button id="tab-products" class="flex-1 whitespace-nowrap py-2 px-4 rounded-md font-medium text-sm transition-colors duration-200 text-gray-600 hover:bg-gray-300">Resumen de Productos</button>
+                        <button id="tab-reports" class="flex-1 whitespace-nowrap py-2 px-4 rounded-md font-medium text-sm transition-colors duration-200 text-gray-600 hover:bg-gray-300">Reportes Adicionales</button>
+                    </nav>
                 </div>
-            </section>
-
-            <!-- Sección de Reporte por Método de Pago -->
-            <section id="payment-report-section" class="hidden relative bg-white p-6 rounded-2xl shadow-lg mt-8">
-                <h2 id="payment-report-title" class="text-2xl font-semibold text-gray-700 mb-4">Reporte por Método de Pago</h2>
-                <div id="payment-report-list" class="space-y-2"></div>
-                <div class="loading-overlay absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center hidden">
-                    <p class="text-gray-600 font-semibold">Cargando...</p>
+                <!-- Contenido de las Pestañas -->
+                <div class="mt-4">
+                    <!-- Contenido Pestaña Pedidos -->
+                    <div id="tab-content-orders">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hora</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cajero</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="orders-table-body" class="bg-white divide-y divide-gray-200"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- Contenido Pestaña Productos -->
+                    <div id="tab-content-products" class="hidden">
+                        <!-- El reporte de productos se cargará aquí. -->
+                        <div id="product-report-list-tab" class="space-y-2"></div>
+                    </div>
+                    <!-- Contenido Pestaña Reportes Adicionales -->
+                    <div id="tab-content-reports" class="hidden space-y-8">
+                        <div id="payment-report-section-tab">
+                            <h3 class="text-xl font-semibold text-gray-700 mb-2">Reporte por Método de Pago</h3>
+                            <div id="payment-report-list-tab" class="space-y-2"></div>
+                        </div>
+                        <hr>
+                        <div id="stock-report-section-tab">
+                            <h3 class="text-xl font-semibold text-gray-700 mb-2">Reporte de Stock de Insumos</h3>
+                            <div id="stock-report-list-tab" class="space-y-2"></div>
+                        </div>
+                    </div>
                 </div>
-            </section>
-            
-            <!-- Sección de Reporte de Stock -->
-            <section id="stock-report-section" class="relative bg-white p-6 rounded-2xl shadow-lg mt-8">
-                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Reporte de Stock de Insumos</h2>
-                <div id="stock-report-list" class="space-y-2"></div>
             </section>
         </main>
     </div>
@@ -232,17 +232,7 @@
         let userRole = '';
 
         // Button and status elements
-        const adminMenuItemsContainer = document.getElementById('admin-menu-items');
-        const approveBtn = document.getElementById('approve-closure-btn');
-        const forceBtn = document.getElementById('force-closure-btn');
-        const regenerateBtn = document.getElementById('regenerate-report-btn');
-        const reopenBtn = document.getElementById('reopen-day-btn');
-        const cashierReportBtn = document.getElementById('cashier-report-btn');
-        const cashierPdfReportBtn = document.getElementById('cashier-pdf-report-btn');
-        const statusPending = document.getElementById('status-pending');
-        const statusClosed = document.getElementById('status-closed');
-
-
+        // (Los elementos del modal se obtienen dentro de sus funciones)
         async function loadDashboardData(date = '') {
             const url = date ? `/api/dashboard/data?date=${date}` : '/api/dashboard/data';
             const totalSalesEl = document.getElementById('total-sales');
@@ -280,8 +270,8 @@
                     }
                 });
                 const reportData = await response.json();
-                const reportContainer = document.getElementById('product-report-list');
-                const bestSellerContainer = document.getElementById('best-seller-product');
+                const reportContainer = document.getElementById('product-report-list-tab'); // CORRECCIÓN: Apuntar al nuevo contenedor.
+                const bestSellerContainer = document.getElementById('best-seller-product'); // Este sigue igual.
                 reportContainer.innerHTML = '';
                 bestSellerContainer.innerHTML = '';
 
@@ -330,9 +320,9 @@
                 const totalRevenue = reportData.reduce((sum, item) => sum + parseFloat(item.total_revenue), 0);
 
                 reportContainer.innerHTML = headerHtml + rowsHtml;
-            } catch (error) {
+            } catch (error) { // CORRECCIÓN: Apuntar al nuevo contenedor en caso de error.
                 console.error('Error al cargar el reporte de productos:', error);
-                document.getElementById('product-report-list').innerHTML = '<p class="text-red-500">No se pudo cargar el reporte.</p>';
+                document.getElementById('product-report-list-tab').innerHTML = '<p class="text-red-500">No se pudo cargar el reporte.</p>';
                 document.getElementById('best-seller-product').innerHTML = '<p class="text-red-500">Error.</p>';
             }
         }
@@ -344,7 +334,7 @@
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const reportData = await response.json();
-                const reportContainer = document.getElementById('payment-report-list');
+                const reportContainer = document.getElementById('payment-report-list-tab');
                 reportContainer.innerHTML = '';
 
                 if (reportData.length === 0) {
@@ -382,7 +372,7 @@
                 reportContainer.innerHTML = headerHtml + rowsHtml;
             } catch (error) {
                 console.error('Error al cargar el reporte de pagos:', error);
-                document.getElementById('payment-report-list').innerHTML = '<p class="text-red-500">No se pudo cargar el reporte de pagos.</p>';
+                document.getElementById('payment-report-list-tab').innerHTML = '<p class="text-red-500">No se pudo cargar el reporte de pagos.</p>';
             }
         }
 
@@ -452,11 +442,11 @@
                 const response = await fetch('/api/dashboard/ingredient-stock-report', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                const reportData = await response.json();
-                const reportContainer = document.getElementById('stock-report-list');
+                const reportData = await response.json(); // CORRECCIÓN: Apuntar al nuevo contenedor
+                const reportContainer = document.getElementById('stock-report-list-tab');
                 reportContainer.innerHTML = '';
 
-                if (reportData.length === 0) {
+                if (!reportData || reportData.length === 0) {
                     reportContainer.innerHTML = '<p class="text-gray-500">No hay insumos registrados.</p>';
                     return;
                 }
@@ -486,7 +476,7 @@
                 reportContainer.innerHTML = headerHtml + rowsHtml;
             } catch (error) {
                 console.error('Error al cargar el reporte de stock:', error);
-                document.getElementById('stock-report-list').innerHTML = '<p class="text-red-500">No se pudo cargar el reporte de stock.</p>';
+                document.getElementById('stock-report-list-tab').innerHTML = '<p class="text-red-500">No se pudo cargar el reporte de stock.</p>';
             }
         }
 
@@ -495,17 +485,21 @@
             try {
                 const payload = JSON.parse(atob(token.split('.')[1]));
                 userRole = payload.role;
+                const adminActionsContainer = document.getElementById('admin-actions-container');
+                const cashierActionsContainer = document.getElementById('cashier-actions-container');
+                const adminMenuItemsContainer = document.getElementById('admin-menu-items');
     
                 // Limpiar y construir el menú de acciones basado en el rol
                 adminMenuItemsContainer.innerHTML = ''; 
     
                 if (userRole === 'admin') {
+                    adminActionsContainer.classList.remove('hidden');
                     const adminLinks = [
                         { href: '/manage-products.html', text: 'Gestionar Productos' },
-                        { href: '/manage-recipes.html', text: 'Gestionar Recetas' },,
-                        { href: '/manage-ingredients.html', text: 'Gestionar Insumos' },,
-                        { href: '/manage-sauces.html', text: 'Gestionar Cremas' },,
-                        { href: '/manage-users.html', text: 'Gestionar Usuarios' },,
+                        { href: '/manage-recipes.html', text: 'Gestionar Recetas' },
+                        { href: '/manage-ingredients.html', text: 'Gestionar Insumos' },
+                        { href: '/manage-sauces.html', text: 'Gestionar Cremas' },
+                        { href: '/manage-users.html', text: 'Gestionar Usuarios' },
                         { href: '/manage-expenses.html', text: 'Gestionar Gastos' },
                         { href: '/sales-report.html', text: 'Reporte de Ventas' },
                         { href: '/cashier-closures-report.html', text: 'Historial de Cierres' },
@@ -526,29 +520,26 @@
                     adminMenuItemsContainer.innerHTML += `<a href="/manage-products.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Gestionar Productos</a>`;
                     adminMenuItemsContainer.innerHTML += `<a href="/manage-expenses.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Registrar Gasto</a>`;                    // CORRECCIÓN: El reporte de ventas solo es para admin y cashier.
                     // El enlace al reporte de ventas es visible para los cajeros.
+                    cashierActionsContainer.classList.remove('hidden');
                     adminMenuItemsContainer.innerHTML += `<a href="/sales-report.html" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Reporte de Ventas</a>`;
                 }
     
                 // Lógica de visibilidad de secciones por rol
-                if (userRole === 'admin' || userRole === 'cashier') {
+                if (userRole === 'admin' || userRole === 'cashier') { // Esta es la sección unificada
                     document.getElementById('summary-section').classList.remove('hidden');
-                    document.getElementById('product-report-section').classList.remove('hidden');
-                    document.getElementById('payment-report-section').classList.remove('hidden');
-                    document.getElementById('orders-day-section').classList.remove('hidden');
-                }
-
-                if (userRole === 'admin') {
-                    // Solo el admin ve la sección de aprobación de cierres
-                    document.getElementById('admin-closure-approval-section').classList.remove('hidden');
-                } else {
-                    // Ocultar para otros roles para evitar confusiones
-                    document.getElementById('admin-closure-approval-section').classList.add('hidden');
+                    document.getElementById('activity-day-section').classList.remove('hidden');
                 }
     
             } catch (e) {
                 console.error('Error al decodificar token:', e);
                 adminMenuItemsContainer.innerHTML = '';
             }
+
+            // Mostrar la sección de aprobación de cierres solo para el admin
+            if (userRole === 'admin') {
+                document.getElementById('admin-closure-approval-section').classList.remove('hidden');
+            }
+
         }
 
         async function updateAllData() {
@@ -558,57 +549,83 @@
             
             const dataPromises = [
                 loadProductReport(selectedDate),
-                loadDashboardData(selectedDate), // Esta llamada ahora también carga la tabla de órdenes
-                loadStockReport(selectedDate),
-                updateDashboardActions(selectedDate)
-                
+                loadDashboardData(selectedDate),
+                updateDashboardActions(selectedDate) // Restauramos la llamada
             ];
 
             if (userRole === 'admin' || userRole === 'cashier') {
-                dataPromises.push(loadDashboardData(selectedDate), loadPaymentReport(selectedDate));
+                dataPromises.push(loadPaymentReport(selectedDate), loadStockReport(selectedDate)); // Carga los reportes adicionales
             }
 
-            await Promise.all(dataPromises);
+            await Promise.all(dataPromises); // Carga todos los datos en paralelo
 
+            // Cargar cierres pendientes para el admin después de que todo lo demás esté listo
             if (userRole === 'admin') {
                 await loadPendingClosures(selectedDate);
             }
             
             loadingOverlays.forEach(overlay => overlay.classList.add('hidden'));
 
-            const productReportTitle = document.getElementById('product-report-title');
-            const paymentReportTitle = document.getElementById('payment-report-title');
-            const ordersDayTitle = document.getElementById('orders-day-title');
+            const activityDayTitle = document.getElementById('activity-day-title');
             const subtitle = document.getElementById('dashboard-subtitle');
             if (selectedDate) {
                 subtitle.innerText = `Mostrando datos para: ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-PE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`;
-                productReportTitle.innerText = 'Reporte de Productos de la Fecha Seleccionada';
-                paymentReportTitle.innerText = 'Reporte por Método de Pago de la Fecha Seleccionada';
-                ordersDayTitle.innerText = 'Pedidos de la Fecha Seleccionada';
+                activityDayTitle.innerText = 'Actividad de la Fecha Seleccionada';
             } else {
                 subtitle.innerText = 'Ventas y reportes del día de hoy';
-                productReportTitle.innerText = 'Reporte de Productos Vendidos Hoy';
-                paymentReportTitle.innerText = 'Reporte por Método de Pago de Hoy';
-                ordersDayTitle.innerText = 'Pedidos del Día';
+                activityDayTitle.innerText = 'Actividad del Día';
             }
         }
 
+        function setupTabs() {
+            const tabOrders = document.getElementById('tab-orders');
+            const tabProducts = document.getElementById('tab-products');
+            const contentOrders = document.getElementById('tab-content-orders');
+            const contentProducts = document.getElementById('tab-content-products');
+            const tabReports = document.getElementById('tab-reports');
+            const contentReports = document.getElementById('tab-content-reports');
+
+            const tabs = [
+                { button: tabOrders, content: contentOrders },
+                { button: tabProducts, content: contentProducts },
+                { button: tabReports, content: contentReports }
+            ];
+
+            const setActiveTab = (activeIndex) => {
+                tabs.forEach((tab, index) => {
+                    const isActive = index === activeIndex;
+                    // Cambiar clases para el nuevo estilo de botones
+                    tab.button.classList.toggle('bg-white', isActive);
+                    tab.button.classList.toggle('text-blue-600', isActive);
+                    tab.button.classList.toggle('shadow-sm', isActive);
+                    tab.button.classList.toggle('text-gray-600', !isActive);
+                    tab.button.classList.toggle('hover:bg-gray-300', !isActive);
+                    tab.content.classList.toggle('hidden', !isActive);
+                });
+            };
+
+            tabs.forEach((tab, index) => {
+                if (tab.button) {
+                    tab.button.addEventListener('click', () => setActiveTab(index));
+                }
+            });
+        }
+
         async function updateDashboardActions(date) {
-            // Hide all buttons and statuses first
-            [approveBtn, forceBtn, regenerateBtn, reopenBtn, cashierReportBtn, cashierPdfReportBtn, statusPending, statusClosed].forEach(el => el && el.classList.add('hidden'));
+            const approveBtn = document.getElementById('approve-closure-btn');
+            const forceBtn = document.getElementById('force-closure-btn');
+            const regenerateBtn = document.getElementById('regenerate-report-btn');
+            const reopenBtn = document.getElementById('reopen-day-btn');
+            const statusPending = document.getElementById('status-pending');
+            const statusClosed = document.getElementById('status-closed');
+
+            // Ocultar todos los botones y estados primero
+            [approveBtn, forceBtn, regenerateBtn, reopenBtn, statusPending, statusClosed].forEach(el => el && el.classList.add('hidden'));
             
-            // Lógica para obtener el "Día Operativo" actual
-            const BUSINESS_DAY_CUTOFF_HOUR = 5;
-            const now = new Date();
-            const today = new Date(now);
-            if (now.getHours() < BUSINESS_DAY_CUTOFF_HOUR) {
-                today.setDate(today.getDate() - 1); // Si son las 3 AM, el día operativo es el de ayer.
-            }
-            const todayStr = today.toLocaleDateString('en-CA'); // Formato YYYY-MM-DD
-            
-            // CORRECCIÓN: Asegurarse de que selectedDate sea siempre una cadena YYYY-MM-DD.
-            // Si 'date' (del datepicker) está vacío, usamos 'todayStr'.
-            const selectedDate = date || todayStr;
+            // Solo el admin ve estos botones
+            if (userRole !== 'admin') return;
+
+            const selectedDate = date || new Date().toLocaleDateString('en-CA');
 
             try {
                 const response = await fetch(`/api/reports/status?date=${selectedDate}`, {
@@ -618,43 +635,16 @@
                 
                 const { status } = await response.json();
 
-                // Adicionalmente, verificar el estado de la sesión del cajero
-                let cashierSessionStatus = null;
-                if (userRole === 'cashier') {
-                    const sessionStatusResponse = await fetch(`/api/cashier-session/status?date=${selectedDate}`, { headers: { 'Authorization': `Bearer ${token}` } });
-                    if (sessionStatusResponse.ok) {
-                        const sessionData = await sessionStatusResponse.json();
-                        if (sessionData.hasStarted) {
-                            cashierSessionStatus = sessionData.status;
-                        }
-                    }
-                }
-
                 // Lógica de visibilidad de botones para el Administrador
-                if (userRole === 'admin') {
-                    if (status === 'pending_closure' && selectedDate === todayStr) {
-                        approveBtn.classList.remove('hidden');
-                        statusPending.classList.remove('hidden');
-                    } else if (status === 'open' && selectedDate <= todayStr) {
-                        forceBtn.classList.remove('hidden'); 
-                    } else if (status === 'closed') {
-                        regenerateBtn.classList.remove('hidden');
-                        reopenBtn.classList.remove('hidden');
-                        statusClosed.classList.remove('hidden');
-                    }
-                }
-                // Lógica de visibilidad de botones para el Cajero
-                if (userRole === 'cashier') {
-                    // CORRECCIÓN: Mostrar botones solo si la caja está 'open'.
-                    if (selectedDate === todayStr && status === 'open' && cashierSessionStatus === 'open') {
-                        cashierReportBtn.classList.remove('hidden');
-                        cashierPdfReportBtn.classList.remove('hidden');
-                    } else if (cashierSessionStatus === 'pending_approval') {
-                        // Mostrar estado de pendiente si el cajero ya cerró su caja.
-                        statusPending.classList.remove('hidden');
-                    } else if (cashierSessionStatus === 'approved' || status === 'closed') {
-                        statusClosed.classList.remove('hidden');
-                    }
+                if (status === 'pending_closure') {
+                    approveBtn.classList.remove('hidden');
+                    statusPending.classList.remove('hidden');
+                } else if (status === 'open') {
+                    forceBtn.classList.remove('hidden'); 
+                } else if (status === 'closed') {
+                    regenerateBtn.classList.remove('hidden');
+                    reopenBtn.classList.remove('hidden');
+                    statusClosed.classList.remove('hidden');
                 }
             } catch (error) {
                 console.error('Error updating dashboard actions:', error);
@@ -664,8 +654,11 @@
 
         async function loadPendingClosures(date) {
             const listContainer = document.getElementById('pending-closures-list');
+            if (!listContainer) return;
+
             try {
-                const response = await fetch(`/api/admin/pending-closures?date=${date}`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const url = date ? `/api/admin/pending-closures?date=${date}` : '/api/admin/pending-closures';
+                const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
                 if (!response.ok) throw new Error('No se pudieron cargar los cierres pendientes.');
                 const sessions = await response.json();
 
@@ -675,9 +668,8 @@
                 }
 
                 listContainer.innerHTML = sessions.map(session => {
-                    const difference = parseFloat(session.end_amount) - (parseFloat(session.start_amount) /* + ventas efectivo - gastos */);
-                    // Nota: Para un cálculo de diferencia exacto aquí, necesitaríamos recalcular las ventas y gastos de ese cajero.
-                    // Por ahora, mostramos los montos brutos.
+                    // Para un cálculo de diferencia exacto, necesitaríamos más datos aquí.
+                    // Por ahora, mostramos los montos brutos para la aprobación.
                     return `
                         <div class="border p-4 rounded-lg bg-yellow-50">
                             <div class="flex justify-between items-center">
@@ -705,124 +697,10 @@
                 });
                 if (!response.ok) throw new Error((await response.json()).message || 'Error al aprobar.');
                 showToast('Cierre de caja aprobado.');
-                updateAllData();
-            } catch (error) { showToast(error.message, 'error'); }
-        }
-
-        async function generateCashierPdfReport() {
-            const selectedDate = datePicker.value;
-            showToast('Generando tu reporte PDF...', 'success');
-            try {
-                const response = await fetch('/api/reports/cashier-report', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ date: selectedDate })
-                });
-
-                if (!response.ok) throw new Error('Error al generar el reporte de cajero.');
-
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                // Extraer el nombre del archivo del header Content-Disposition
-                const disposition = response.headers.get('Content-Disposition');
-                const filename = disposition ? disposition.split('filename=')[1].replace(/"/g, '') : 'reporte-cajero.pdf';
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-            } catch (error) {
-                showToast('No se pudo generar el reporte de caja.', 'error');
+                updateAllData(); // Recargar todo para actualizar la lista de pendientes y el estado general
+            } catch (error) { 
+                showToast(error.message, 'error'); 
             }
-        }
-
-        async function openCashierClosureModal() {
-            const selectedDate = datePicker.value;
-            const modal = document.getElementById('cashier-closure-modal');
-            const summaryContainer = document.getElementById('cashier-closure-summary');
-            const countedAmountInput = document.getElementById('counted-amount');
-            const differenceSection = document.getElementById('cash-difference-section');
-
-            // 1. Obtener los datos para el resumen
-            const reportResponse = await fetch(`/api/cashier-session/summary?date=${selectedDate}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!reportResponse.ok) {
-                showToast('No se pudieron cargar los datos para el cierre.', 'error');
-                return;
-            }
-            const reportData = await reportResponse.json();
-
-            // 2. Calcular y mostrar el resumen
-            const { startAmount, salesByPaymentMethod, totalCash, totalExpenses } = reportData;
-            const totalSales = Object.values(salesByPaymentMethod).reduce((sum, amount) => sum + amount, 0);
-            const expectedInBox = startAmount + totalCash - totalExpenses;
-
-            let salesBreakdownHtml = Object.entries(salesByPaymentMethod)
-                .map(([method, amount]) => `<p class="flex justify-between text-sm pl-4"><span>- ${method}:</span> <span>S/. ${amount.toFixed(2)}</span></p>`)
-                .join('');
-
-            summaryContainer.innerHTML = `
-                <p class="flex justify-between font-semibold"><span>Ventas Totales del Día:</span> <span>S/. ${totalSales.toFixed(2)}</span></p>
-                <div class="text-gray-600">${salesBreakdownHtml || '<p class="text-sm pl-4">- Sin ventas registradas.</p>'}</div>
-                <hr class="my-2 border-gray-300">
-                <h4 class="font-semibold text-center text-gray-800">Cálculo de Caja</h4>
-                <p class="flex justify-between"><span>(+) Monto Inicial:</span> <strong>S/. ${parseFloat(startAmount).toFixed(2)}</strong></p>
-                <p class="flex justify-between"><span>(+) Ventas en Efectivo:</span> <strong>S/. ${parseFloat(totalCash).toFixed(2)}</strong></p>
-                <p class="flex justify-between"><span>(-) Gastos Registrados:</span> <strong>S/. ${parseFloat(totalExpenses).toFixed(2)}</strong></p>
-                <hr class="my-1 border-gray-300">
-                <p class="flex justify-between font-bold text-lg"><span>(=) Total Esperado en Caja:</span> <span>S/. ${expectedInBox.toFixed(2)}</span></p>
-            `;
-
-            // 3. Lógica para calcular y mostrar la diferencia en tiempo real
-            countedAmountInput.oninput = () => {
-                const counted = parseFloat(countedAmountInput.value) || 0;
-                const difference = counted - expectedInBox;
-                if (difference === 0) {
-                    differenceSection.innerHTML = `<span class="text-green-600">Caja Cuadrada</span>`;
-                } else if (difference > 0) {
-                    differenceSection.innerHTML = `<span class="text-blue-600">Sobrante: S/. ${difference.toFixed(2)}</span>`;
-                } else {
-                    differenceSection.innerHTML = `<span class="text-red-600">Faltante: S/. ${Math.abs(difference).toFixed(2)}</span>`;
-                }
-            };
-
-            // 4. Mostrar el modal
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-
-            // 5. Lógica de los botones del modal
-            document.getElementById('cancel-closure-modal-btn').onclick = () => {
-                modal.classList.add('hidden');
-                modal.classList.remove('flex');
-            };
-
-            document.getElementById('confirm-closure-btn').onclick = async () => {
-                const countedAmount = countedAmountInput.value;
-                if (countedAmount === '') {
-                    showToast('Debes ingresar el monto contado.', 'error');
-                    return;
-                }
-                // Lógica para enviar al backend
-                const closeResponse = await fetch('/api/cashier-session/close', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ countedAmount })
-                });
-                if (closeResponse.ok) {
-                    showToast('Caja cerrada exitosamente.');
-                    modal.classList.add('hidden');
-                    modal.classList.remove('flex');
-                    updateAllData(); // Actualizar el dashboard
-                } else {
-                    showToast('Error al cerrar la caja.', 'error');
-                }
-            };
         }
 
         async function generateReport() {
@@ -952,6 +830,122 @@
             confirmBtn.onclick = handleConfirm; // Assign the action
         }
 
+        async function generateCashierPdfReport() {
+            const selectedDate = datePicker.value;
+            showToast('Generando tu reporte PDF...', 'success');
+            try {
+                const response = await fetch('/api/reports/cashier-report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ date: selectedDate })
+                });
+
+                if (!response.ok) throw new Error('Error al generar el reporte de cajero.');
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                // Extraer el nombre del archivo del header Content-Disposition
+                const disposition = response.headers.get('Content-Disposition');
+                const filename = disposition ? disposition.split('filename=')[1].replace(/"/g, '') : 'reporte-cajero.pdf';
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            } catch (error) {
+                showToast('No se pudo generar el reporte de caja.', 'error');
+            }
+        }
+
+        async function openCashierClosureModal() {
+            const selectedDate = datePicker.value;
+            const modal = document.getElementById('cashier-closure-modal');
+            const summaryContainer = document.getElementById('cashier-closure-summary');
+            const countedAmountInput = document.getElementById('counted-amount');
+            const differenceSection = document.getElementById('cash-difference-section');
+
+            // 1. Obtener los datos para el resumen
+            const reportResponse = await fetch(`/api/cashier-session/summary?date=${selectedDate}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!reportResponse.ok) {
+                showToast('No se pudieron cargar los datos para el cierre.', 'error');
+                return;
+            }
+            const reportData = await reportResponse.json();
+
+            // 2. Calcular y mostrar el resumen
+            const { startAmount, salesByPaymentMethod, totalCash, totalExpenses } = reportData;
+            const totalSales = Object.values(salesByPaymentMethod).reduce((sum, amount) => sum + amount, 0);
+            const expectedInBox = startAmount + totalCash - totalExpenses;
+
+            let salesBreakdownHtml = Object.entries(salesByPaymentMethod)
+                .map(([method, amount]) => `<p class="flex justify-between text-sm pl-4"><span>- ${method}:</span> <span>S/. ${amount.toFixed(2)}</span></p>`)
+                .join('');
+
+            summaryContainer.innerHTML = `
+                <p class="flex justify-between font-semibold"><span>Ventas Totales del Día:</span> <span>S/. ${totalSales.toFixed(2)}</span></p>
+                <div class="text-gray-600">${salesBreakdownHtml || '<p class="text-sm pl-4">- Sin ventas registradas.</p>'}</div>
+                <hr class="my-2 border-gray-300">
+                <h4 class="font-semibold text-center text-gray-800">Cálculo de Caja</h4>
+                <p class="flex justify-between"><span>(+) Monto Inicial:</span> <strong>S/. ${parseFloat(startAmount).toFixed(2)}</strong></p>
+                <p class="flex justify-between"><span>(+) Ventas en Efectivo:</span> <strong>S/. ${parseFloat(totalCash).toFixed(2)}</strong></p>
+                <p class="flex justify-between"><span>(-) Gastos Registrados:</span> <strong>S/. ${parseFloat(totalExpenses).toFixed(2)}</strong></p>
+                <hr class="my-1 border-gray-300">
+                <p class="flex justify-between font-bold text-lg"><span>(=) Total Esperado en Caja:</span> <span>S/. ${expectedInBox.toFixed(2)}</span></p>
+            `;
+
+            // 3. Lógica para calcular y mostrar la diferencia en tiempo real
+            countedAmountInput.oninput = () => {
+                const counted = parseFloat(countedAmountInput.value) || 0;
+                const difference = counted - expectedInBox;
+                if (difference === 0) {
+                    differenceSection.innerHTML = `<span class="text-green-600">Caja Cuadrada</span>`;
+                } else if (difference > 0) {
+                    differenceSection.innerHTML = `<span class="text-blue-600">Sobrante: S/. ${difference.toFixed(2)}</span>`;
+                } else {
+                    differenceSection.innerHTML = `<span class="text-red-600">Faltante: S/. ${Math.abs(difference).toFixed(2)}</span>`;
+                }
+            };
+
+            // 4. Mostrar el modal
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            // 5. Lógica de los botones del modal
+            document.getElementById('cancel-closure-modal-btn').onclick = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            };
+
+            document.getElementById('confirm-closure-btn').onclick = async () => {
+                const countedAmount = countedAmountInput.value;
+                if (countedAmount === '') {
+                    showToast('Debes ingresar el monto contado.', 'error');
+                    return;
+                }
+                // Lógica para enviar al backend
+                const closeResponse = await fetch('/api/cashier-session/close', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ countedAmount })
+                });
+                if (closeResponse.ok) {
+                    showToast('Caja cerrada exitosamente.');
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                    updateAllData(); // Actualizar el dashboard
+                } else {
+                    showToast('Error al cerrar la caja.', 'error');
+                }
+            };
+        }
+
         function showToast(message, type = 'success') {
             const toastContainer = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -984,13 +978,6 @@
                 localStorage.removeItem('cangre_burger_token');
                 window.location.href = '/login.html';
             });
-            
-            if (cashierReportBtn) cashierReportBtn.addEventListener('click', openCashierClosureModal);
-            if (cashierPdfReportBtn) cashierPdfReportBtn.addEventListener('click', generateCashierPdfReport);
-            if (approveBtn) approveBtn.addEventListener('click', generateReport);
-            if (forceBtn) forceBtn.addEventListener('click', forceClosureReport);
-            if (regenerateBtn) regenerateBtn.addEventListener('click', regenerateReport);
-            if (reopenBtn) reopenBtn.addEventListener('click', reopenDay);
             if(viewTodayBtn) viewTodayBtn.addEventListener('click', () => {
                 datePicker.value = ''; // Limpiar el selector de fecha dispara el comportamiento por defecto
                 updateAllData();
@@ -1006,6 +993,19 @@
             // Listener para el botón de cancelar del modal
             document.getElementById('modal-cancel-btn').addEventListener('click', closeModal);
 
+            // Listeners para los botones de acción del cajero (si existen)
+            const cashierReportBtn = document.getElementById('cashier-report-btn');
+            const cashierPdfReportBtn = document.getElementById('cashier-pdf-report-btn');
+            if (cashierReportBtn) cashierReportBtn.addEventListener('click', openCashierClosureModal);
+            if (cashierPdfReportBtn) cashierPdfReportBtn.addEventListener('click', generateCashierPdfReport);
+
+            // Listeners para los botones de acción del admin
+            document.getElementById('approve-closure-btn')?.addEventListener('click', generateReport);
+            document.getElementById('force-closure-btn')?.addEventListener('click', forceClosureReport);
+            document.getElementById('regenerate-report-btn')?.addEventListener('click', regenerateReport);
+            document.getElementById('reopen-day-btn')?.addEventListener('click', reopenDay);
+
+            setupTabs();
             updateAllData(); // Carga inicial para el día de hoy
         });
     </script>

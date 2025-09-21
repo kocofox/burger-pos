@@ -803,12 +803,25 @@ app.get('/api/dashboard/payment-report', verifyToken, checkRole(['admin', 'cashi
 // Get closure status for a given date
 app.get('/api/reports/status', verifyToken, checkRole(['admin', 'cashier', 'kitchen']), async (req, res) => {
     const { date } = req.query;
-    const targetDate = date || new Date().toLocaleDateString('en-CA');
+    const targetDateStr = date || new Date().toLocaleDateString('en-CA');
+    const { start, end } = getOperationalDayRange(targetDateStr);
 
     try {
-        const closure = await db.DailyClosure.findByPk(targetDate);
+        const closure = await db.DailyClosure.findByPk(targetDateStr);
         if (closure) {
-            res.json({ status: closure.status });
+            // Si ya está cerrado, ese es el estado final.
+            if (closure.status === 'closed') {
+                return res.json({ status: 'closed' });
+            }
+        }
+
+        // NUEVA LÓGICA: Verificar si hay cierres de cajero pendientes para este día.
+        // Si hay al menos uno, el estado general del día es 'pending_closure'.
+        const pendingCount = await db.CashierSession.count({
+            where: { start_time: { [Op.between]: [start, end] }, status: 'pending_approval' }
+        });
+        if (pendingCount > 0) {
+            res.json({ status: 'pending_closure' });
         } else {
             res.json({ status: 'open' }); // Default to open if no record exists
         }
@@ -1190,9 +1203,8 @@ app.post('/api/cashier-session/start', verifyToken, checkRole(['cashier']), asyn
 // Cerrar la caja del cajero
 app.post('/api/cashier-session/close', verifyToken, checkRole(['cashier']), async (req, res) => {
     const { id: userId } = req.user;
-    const { countedAmount } = req.body;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const { countedAmount } = req.body; // CORRECCIÓN: Usar el día operativo actual para encontrar la sesión correcta.
+    const { start, end } = getOperationalDayRange(new Date().toLocaleDateString('en-CA'));
 
     if (countedAmount === undefined || countedAmount < 0) {
         return res.status(400).json({ message: 'El monto contado es requerido.' });
@@ -1200,7 +1212,7 @@ app.post('/api/cashier-session/close', verifyToken, checkRole(['cashier']), asyn
 
     try {
         const session = await db.CashierSession.findOne({
-            where: { user_id: userId, start_time: { [Op.gte]: today } }
+            where: { user_id: userId, start_time: { [Op.between]: [start, end] } }
         });
 
         if (!session) {
