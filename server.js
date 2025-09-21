@@ -1278,6 +1278,63 @@ app.put('/api/admin/closures/:sessionId/approve', verifyToken, checkRole(['admin
     }
 });
 
+app.get('/api/admin/closures/:sessionId/details', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { sessionId } = req.params;
+    try {
+        // 1. Obtener la sesión de caja
+        const session = await db.CashierSession.findByPk(sessionId, {
+            include: [{ model: db.User, as: 'user', attributes: ['username'] }]
+        });
+        if (!session) {
+            return res.status(404).json({ message: 'Cierre de caja no encontrado.' });
+        }
+
+        // 2. Determinar el día operativo de esa sesión
+        const targetDateStr = new Date(session.start_time).toLocaleDateString('en-CA');
+        const { start, end } = getOperationalDayRange(targetDateStr);
+
+        // 3. Obtener los datos del reporte para ese cajero y ese día operativo
+        const where = {
+            user_id: session.user_id,
+            timestamp: { [Op.between]: [start, end] },
+            status: { [Op.not]: 'cancelled' }
+        };
+        const expensesWhere = {
+            user_id: session.user_id,
+            expense_date: targetDateStr,
+            status: 'approved'
+        };
+
+        const totalSales = await db.Order.sum('total', { where }) || 0;
+        const totalExpenses = await db.Expense.sum('amount', { where: expensesWhere }) || 0;
+        const paymentReport = await db.Order.findAll({
+            attributes: ['payment_method', [db.sequelize.fn('SUM', db.sequelize.col('total')), 'total_revenue']],
+            where: { ...where, payment_method: { [Op.ne]: null } },
+            group: ['payment_method']
+        });
+
+        const salesByPaymentMethod = {};
+        paymentReport.forEach(item => {
+            salesByPaymentMethod[item.get('payment_method')] = parseFloat(item.get('total_revenue'));
+        });
+
+        const details = {
+            session,
+            totalSales,
+            totalExpenses,
+            salesByPaymentMethod
+        };
+
+        res.json(details);
+
+    } catch (error) {
+        console.error(`Error detallado en GET /api/admin/closures/${sessionId}/details:`, {
+            message: error.message, stack: error.stack, params: req.params
+        });
+        res.status(500).json({ message: 'Error interno al obtener los detalles del cierre.' });
+    }
+});
+
 app.get('/api/admin/closures-history', verifyToken, checkRole(['admin']), async (req, res) => {
     const { startDate, endDate, userId } = req.query;
     try {
@@ -1310,6 +1367,61 @@ app.get('/api/admin/closures-history', verifyToken, checkRole(['admin']), async 
             query: req.query
         });
         res.status(500).json({ message: 'Error interno al obtener historial de cierres.' });
+    }
+});
+
+// NUEVO ENDPOINT: Generar el PDF para un cierre de caja histórico específico (Admin)
+app.post('/api/reports/cashier-closure-report', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { sessionId } = req.body;
+    if (!sessionId) {
+        return res.status(400).json({ message: 'Se requiere el ID de la sesión.' });
+    }
+
+    try {
+        // 1. Obtener la sesión de caja
+        const session = await db.CashierSession.findByPk(sessionId, {
+            include: [{ model: db.User, as: 'user' }]
+        });
+        if (!session) {
+            return res.status(404).json({ message: 'Cierre de caja no encontrado.' });
+        }
+
+        // 2. Determinar el día operativo de esa sesión
+        const targetDateStr = new Date(session.start_time).toLocaleDateString('en-CA');
+        const { start, end } = getOperationalDayRange(targetDateStr);
+
+        // 3. Obtener los datos del reporte para ese cajero y ese día operativo
+        const where = {
+            user_id: session.user_id,
+            timestamp: { [Op.between]: [start, end] },
+            status: { [Op.not]: 'cancelled' }
+        };
+        const expensesWhere = {
+            user_id: session.user_id,
+            expense_date: targetDateStr,
+            status: 'approved'
+        };
+
+        const totalSales = await db.Order.sum('total', { where }) || 0;
+        const totalExpenses = await db.Expense.sum('amount', { where: expensesWhere }) || 0;
+        const paymentReport = await db.Order.findAll({
+            attributes: ['payment_method', [db.sequelize.fn('COUNT', db.sequelize.col('id')), 'transaction_count'], [db.sequelize.fn('SUM', db.sequelize.col('total')), 'total_revenue']],
+            where: { ...where, payment_method: { [Op.ne]: null } },
+            group: ['payment_method'],
+            order: [[db.sequelize.fn('SUM', db.sequelize.col('total')), 'DESC']]
+        });
+
+        const startAmount = parseFloat(session.start_amount);
+
+        // 4. Generar el PDF
+        const cashierReportData = { totalSales, paymentReport, startAmount, totalExpenses, targetDateStr };
+        generateCashierPdfReport(res, cashierReportData, session.user);
+
+    } catch (error) {
+        console.error("Error detallado en POST /api/reports/cashier-closure-report:", {
+            message: error.message, stack: error.stack, requestBody: req.body
+        });
+        res.status(500).json({ message: 'Error interno al generar el reporte de cierre de caja.' });
     }
 });
 // NUEVO ENDPOINT: Obtener resumen de caja para el modal de cierre

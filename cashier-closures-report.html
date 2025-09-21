@@ -57,12 +57,35 @@
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Monto Inicial</th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Monto Contado</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="closures-tbody" class="bg-white divide-y divide-gray-200">
                         <!-- Filas se insertarán aquí -->
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+    <!-- Contenedor para notificaciones Toast -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2"></div>
+
+    <!-- Modal para Detalles de Cierre -->
+    <div id="closure-details-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-60 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 text-left relative">
+            <button id="close-details-modal-btn" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <h3 class="text-2xl font-bold text-gray-800 mb-4 text-center">Detalle de Cierre de Caja</h3>
+            <div id="closure-details-content" class="space-y-3 text-gray-700 p-4 bg-gray-50 rounded-lg">
+                <!-- El resumen detallado se cargará aquí -->
+                <p class="text-center">Cargando detalles...</p>
+            </div>
+            <div id="closure-difference-section" class="mt-4 text-center font-bold text-lg">
+                <!-- La diferencia se mostrará aquí -->
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button onclick="document.getElementById('close-details-modal-btn').click()" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cerrar</button>
             </div>
         </div>
     </div>
@@ -106,7 +129,7 @@
             if (endDate) query += `endDate=${endDate}&`;
             if (userId) query += `userId=${userId}`;
 
-            closuresTbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-gray-500">Cargando...</td></tr>`;
+            closuresTbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-500">Cargando...</td></tr>`;
 
             try {
                 const response = await fetch(`/api/admin/closures-history${query}`, {
@@ -118,17 +141,22 @@
                 renderHistory(data);
 
             } catch (error) {
-                closuresTbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-red-500">${error.message}</td></tr>`;
+                closuresTbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-red-500">${error.message}</td></tr>`;
             }
         }
 
         function renderHistory(data) {
             if (data.length === 0) {
-                closuresTbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-gray-500">No se encontraron registros para los filtros seleccionados.</td></tr>`;
+                closuresTbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-500">No se encontraron registros para los filtros seleccionados.</td></tr>`;
                 return;
             }
 
             closuresTbody.innerHTML = data.map(session => {
+                const actionsHtml = session.status === 'approved' 
+                    ? `<button onclick="showDetailsModal(${session.id})" class="text-indigo-600 hover:text-indigo-800 font-medium">Ver Detalle</button>
+                       <button onclick="generateClosurePdf(${session.id})" class="ml-4 text-blue-600 hover:text-blue-800 font-medium">Ver PDF</button>`
+                    : '';
+
                 return `
                     <tr>
                         <td class="px-4 py-3 text-sm text-gray-900">${new Date(session.start_time).toLocaleDateString('es-PE')}</td>
@@ -140,9 +168,104 @@
                                 ${statusText[session.status] || session.status}
                             </span>
                         </td>
+                        <td class="px-4 py-3 text-sm">${actionsHtml}</td>
                     </tr>
                 `;
             }).join('');
+        }
+
+        async function generateClosurePdf(sessionId) {
+            showToast('Generando reporte PDF...', 'info');
+            try {
+                const response = await fetch('/api/reports/cashier-closure-report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ sessionId })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Error al generar el PDF.');
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                const disposition = response.headers.get('Content-Disposition');
+                const filename = disposition ? disposition.split('filename=')[1].replace(/"/g, '') : 'reporte-cierre.pdf';
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+
+            } catch (error) {
+                console.error('Error al descargar el reporte:', error);
+                showToast(error.message, 'error');
+            }
+        }
+
+        async function showDetailsModal(sessionId) {
+            const modal = document.getElementById('closure-details-modal');
+            const contentDiv = document.getElementById('closure-details-content');
+            const differenceDiv = document.getElementById('closure-difference-section');
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            contentDiv.innerHTML = '<p class="text-center">Cargando detalles...</p>';
+            differenceDiv.innerHTML = '';
+
+            try {
+                const response = await fetch(`/api/admin/closures/${sessionId}/details`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('No se pudieron cargar los detalles.');
+                
+                const data = await response.json();
+                const { session, totalSales, totalExpenses, salesByPaymentMethod } = data;
+
+                const startAmount = parseFloat(session.start_amount);
+                const endAmount = parseFloat(session.end_amount);
+                const totalCashSales = salesByPaymentMethod['Efectivo'] || 0;
+                const expectedInBox = startAmount + totalCashSales - totalExpenses;
+                const difference = endAmount - expectedInBox;
+
+                let salesBreakdownHtml = Object.entries(salesByPaymentMethod)
+                    .map(([method, amount]) => `<p class="flex justify-between text-sm pl-4"><span>- ${method}:</span> <span>S/. ${amount.toFixed(2)}</span></p>`)
+                    .join('');
+
+                contentDiv.innerHTML = `
+                    <p class="flex justify-between"><strong>Cajero:</strong> <span>${session.user.username}</span></p>
+                    <p class="flex justify-between"><strong>Fecha:</strong> <span>${new Date(session.start_time).toLocaleDateString('es-PE')}</span></p>
+                    <hr class="my-2 border-gray-300">
+                    <p class="flex justify-between font-semibold"><span>Ventas Totales del Cajero:</span> <span>S/. ${totalSales.toFixed(2)}</span></p>
+                    <div class="text-gray-600">${salesBreakdownHtml || '<p class="text-sm pl-4">- Sin ventas registradas.</p>'}</div>
+                    <hr class="my-2 border-gray-300">
+                    <h4 class="font-semibold text-center text-gray-800">Cálculo de Caja</h4>
+                    <p class="flex justify-between"><span>(+) Monto Inicial:</span> <strong>S/. ${startAmount.toFixed(2)}</strong></p>
+                    <p class="flex justify-between"><span>(+) Ventas en Efectivo:</span> <strong>S/. ${totalCashSales.toFixed(2)}</strong></p>
+                    <p class="flex justify-between"><span>(-) Gastos Registrados:</span> <strong>S/. ${totalExpenses.toFixed(2)}</strong></p>
+                    <hr class="my-1 border-gray-300">
+                    <p class="flex justify-between font-bold"><span>(=) Total Esperado en Caja:</span> <span>S/. ${expectedInBox.toFixed(2)}</span></p>
+                    <p class="flex justify-between"><span>Monto Contado Real:</span> <strong>S/. ${endAmount.toFixed(2)}</strong></p>
+                `;
+
+                if (difference === 0) {
+                    differenceDiv.innerHTML = `<span class="text-green-600">Caja Cuadrada (Diferencia: S/. 0.00)</span>`;
+                } else if (difference > 0) {
+                    differenceDiv.innerHTML = `<span class="text-blue-600">Sobrante: S/. ${difference.toFixed(2)}</span>`;
+                } else {
+                    differenceDiv.innerHTML = `<span class="text-red-600">Faltante: S/. ${Math.abs(difference).toFixed(2)}</span>`;
+                }
+
+            } catch (error) {
+                contentDiv.innerHTML = `<p class="text-center text-red-500">${error.message}</p>`;
+            }
         }
 
         window.onload = () => {
@@ -154,7 +277,32 @@
             fetchClosuresHistory();
 
             filterButton.addEventListener('click', fetchClosuresHistory);
+
+            // Lógica para cerrar el modal de detalles
+            document.getElementById('close-details-modal-btn').addEventListener('click', () => {
+                const modal = document.getElementById('closure-details-modal');
+                modal.classList.add('hidden');
+            });
         };
+
+        // --- Toast Notifications ---
+        function showToast(message, type = 'success') {
+            const toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) return;
+
+            const toast = document.createElement('div');
+            const bgColor = {
+                success: 'bg-green-600',
+                error: 'bg-red-600',
+                info: 'bg-blue-600'
+            }[type] || 'bg-gray-800';
+
+            toast.className = `toast ${bgColor} text-white text-sm font-semibold py-2 px-4 rounded-lg shadow-lg animate-slide-in-up`;
+            toast.textContent = message;
+            
+            toastContainer.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
     </script>
 </body>
 </html>
