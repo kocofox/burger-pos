@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cuentas por Cobrar - Cangre Burger</title>
+    <link href="/dist/output.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <style> body { font-family: 'Inter', sans-serif; } </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">Cuentas por Cobrar</h1>
+                <p class="text-gray-500">Gestiona las deudas pendientes de los clientes.</p>
+            </div>
+            <a href="/dashboard" class="text-blue-600 hover:underline">&larr; Volver al Dashboard</a>
+        </header>
+
+        <!-- Filtros -->
+        <div class="bg-white p-4 rounded-lg shadow-md mb-6 flex flex-wrap items-center gap-4">
+            <div class="flex-1 min-w-[250px]">
+                <label for="customer-search" class="block text-sm font-medium text-gray-700">Buscar Cliente</label>
+                <input type="text" id="customer-search" placeholder="Escribe para buscar..." class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+                <div id="customer-results" class="hidden absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg"></div>
+                <input type="hidden" id="customer-id">
+            </div>
+            <div class="flex-1 min-w-[200px]">
+                <label for="status-filter" class="block text-sm font-medium text-gray-700">Estado</label>
+                <select id="status-filter" class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+                    <option value="unpaid">Pendientes</option>
+                    <option value="paid">Pagadas</option>
+                    <option value="">Todas</option>
+                </select>
+            </div>
+            <div class="self-end">
+                <button id="filter-button" class="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Filtrar</button>
+            </div>
+        </div>
+
+        <!-- Tabla de Cuentas por Cobrar -->
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Venta</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
+                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="credits-tbody" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Registrar Pago -->
+    <div id="payment-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-60 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Registrar Pago de Deuda</h3>
+            <p class="mb-4">Monto a pagar: <strong id="amount-to-pay"></strong></p>
+            <div>
+                <label for="payment-method-select" class="block text-sm font-medium text-gray-700">Método de Pago</label>
+                <select id="payment-method-select" class="mt-1 block w-full p-2 border border-gray-300 rounded-md"></select>
+            </div>
+            <div class="mt-6 flex justify-end gap-4">
+                <button onclick="closePaymentModal()" class="px-6 py-2 bg-gray-200 rounded-lg">Cancelar</button>
+                <button id="confirm-payment-btn" class="px-6 py-2 bg-green-600 text-white font-bold rounded-lg">Confirmar Pago</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('cangre_burger_token');
+        if (!token) window.location.href = '/login.html';
+
+        const creditsTbody = document.getElementById('credits-tbody');
+        const filterButton = document.getElementById('filter-button');
+        const statusFilter = document.getElementById('status-filter');
+        const customerSearchInput = document.getElementById('customer-search');
+        const customerIdInput = document.getElementById('customer-id');
+        let paymentMethods = [];
+
+        const statusClasses = {
+            unpaid: 'bg-yellow-100 text-yellow-800',
+            paid: 'bg-green-100 text-green-800'
+        };
+        const statusText = {
+            unpaid: 'Pendiente',
+            paid: 'Pagado'
+        };
+
+        async function fetchCredits() {
+            const customerId = customerIdInput.value;
+            const status = statusFilter.value;
+            let query = `?status=${status}`;
+            if (customerId) query += `&customerId=${customerId}`;
+
+            creditsTbody.innerHTML = `<tr><td colspan="5" class="text-center py-8">Cargando...</td></tr>`;
+            const response = await fetch(`/api/credits/receivable${query}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const credits = await response.json();
+            renderCredits(credits);
+        }
+
+        function renderCredits(credits) {
+            if (credits.length === 0) {
+                creditsTbody.innerHTML = `<tr><td colspan="5" class="text-center py-8">No se encontraron deudas.</td></tr>`;
+                return;
+            }
+            creditsTbody.innerHTML = credits.map(credit => {
+                const actionsHtml = credit.status === 'unpaid'
+                    ? `<button onclick="openPaymentModal(${credit.id}, ${credit.amount})" class="text-green-600 font-medium">Registrar Pago</button>`
+                    : `Pagado el ${new Date(credit.paid_at).toLocaleDateString('es-PE')}`;
+
+                return `
+                    <tr>
+                        <td class="px-4 py-3">${new Date(credit.order.timestamp).toLocaleDateString('es-PE')}</td>
+                        <td class="px-4 py-3">${credit.customer.full_name}</td>
+                        <td class="px-4 py-3 text-right font-medium">S/. ${parseFloat(credit.amount).toFixed(2)}</td>
+                        <td class="px-4 py-3 text-center">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClasses[credit.status]}">
+                                ${statusText[credit.status]}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3">${actionsHtml}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function openPaymentModal(creditId, amount) {
+            document.getElementById('amount-to-pay').textContent = `S/. ${parseFloat(amount).toFixed(2)}`;
+            const modal = document.getElementById('payment-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            const confirmBtn = document.getElementById('confirm-payment-btn');
+            confirmBtn.onclick = () => registerPayment(creditId);
+        }
+
+        function closePaymentModal() {
+            document.getElementById('payment-modal').classList.add('hidden');
+        }
+
+        async function registerPayment(creditId) {
+            const paymentMethod = document.getElementById('payment-method-select').value;
+            const response = await fetch(`/api/credits/${creditId}/pay`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ payment_method: paymentMethod })
+            });
+            if (response.ok) {
+                alert('Pago registrado exitosamente.');
+                closePaymentModal();
+                fetchCredits();
+            } else {
+                const error = await response.json();
+                alert(`Error: ${error.message}`);
+            }
+        }
+
+        async function loadPaymentMethods() {
+            const response = await fetch('/api/payment-methods');
+            paymentMethods = await response.json();
+            const select = document.getElementById('payment-method-select');
+            select.innerHTML = paymentMethods.map(m => `<option value="${m}">${m}</option>`).join('');
+        }
+
+        // Lógica de búsqueda de clientes (simplificada)
+        customerSearchInput.addEventListener('input', async () => {
+            const query = customerSearchInput.value;
+            if (query.length < 2) {
+                customerIdInput.value = '';
+                return;
+            }
+            const response = await fetch(`/api/customers?search=${query}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const customers = await response.json();
+            const resultsContainer = document.getElementById('customer-results');
+            resultsContainer.innerHTML = customers.map(c => `<div class="p-2 hover:bg-gray-100 cursor-pointer" data-id="${c.id}" data-name="${c.full_name}">${c.full_name}</div>`).join('');
+            resultsContainer.classList.remove('hidden');
+
+            resultsContainer.onclick = (e) => {
+                if (e.target.dataset.id) {
+                    customerSearchInput.value = e.target.dataset.name;
+                    customerIdInput.value = e.target.dataset.id;
+                    resultsContainer.classList.add('hidden');
+                }
+            };
+        });
+
+        window.onload = () => {
+            filterButton.addEventListener('click', fetchCredits);
+            loadPaymentMethods();
+            fetchCredits();
+        };
+    </script>
+</body>
+</html>

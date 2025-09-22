@@ -22,26 +22,50 @@
 
         <!-- Formulario para Registrar Gasto -->
         <div class="bg-white p-6 rounded-lg shadow-md mb-8">
-            <h2 class="text-xl font-semibold mb-4">Registrar Nuevo Gasto</h2>
+            <h2 id="form-title" class="text-xl font-semibold mb-4">Registrar Nuevo Gasto</h2>
             <form id="expense-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="md:col-span-3">
+                <div class="md:col-span-2">
                     <label for="description" class="block text-sm font-medium text-gray-700">Descripción</label>
                     <input type="text" id="description" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
                 </div>
                 <div>
-                    <label for="amount" class="block text-sm font-medium text-gray-700">Monto (S/.)</label>
-                    <input type="number" id="amount" step="0.01" min="0" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+                    <label for="expense_date" class="block text-sm font-medium text-gray-700">Fecha del Gasto</label>
+                    <input type="date" id="expense_date" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <div>
+                    <label for="supplier" class="block text-sm font-medium text-gray-700">Proveedor (Opcional)</label>
+                    <input type="text" id="supplier" class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
                 </div>
                 <div>
                     <label for="category" class="block text-sm font-medium text-gray-700">Categoría</label>
                     <input type="text" id="category" placeholder="Ej: Insumos, Limpieza" class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
                 </div>
                 <div>
-                    <label for="expense_date" class="block text-sm font-medium text-gray-700">Fecha del Gasto</label>
-                    <input type="date" id="expense_date" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+                    <label for="amount" class="block text-sm font-medium text-gray-700">Monto (S/.)</label>
+                    <input type="number" id="amount" step="0.01" min="0" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <div>
+                    <label for="payment_status" class="block text-sm font-medium text-gray-700">Estado de Pago</label>
+                    <select id="payment_status" class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+                        <option value="paid">Pagado</option>
+                        <option value="unpaid">Por Pagar</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="payment_method" class="block text-sm font-medium text-gray-700">Método de Pago</label>
+                    <select id="payment_method" class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+                        <!-- Opciones se cargarán dinámicamente -->
+                    </select>
+                </div>
+                <div>
+                    <label for="voucher_ref" class="block text-sm font-medium text-gray-700">Nº Comprobante (Opcional)</label>
+                    <input type="text" id="voucher_ref" class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
                 </div>
                 <div class="md:col-span-3 text-right">
-                    <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700">Registrar Gasto</button>
+                    <div class="flex justify-end gap-4">
+                        <button type="button" id="cancel-edit-btn" class="hidden bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancelar Edición</button>
+                        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700">Registrar Gasto</button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -54,10 +78,11 @@
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción / Proveedor</th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Registrado por</th>
-                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado</th>
+                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado Aprob.</th>
+                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado Pago</th>
                             <th id="actions-header" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
                         </tr>
                     </thead>
@@ -85,12 +110,16 @@
         const statusClasses = {
             pending_approval: 'bg-yellow-100 text-yellow-800',
             approved: 'bg-green-100 text-green-800',
-            rejected: 'bg-red-100 text-red-800'
+            rejected: 'bg-red-100 text-red-800',
+            paid: 'bg-green-100 text-green-800',
+            unpaid: 'bg-orange-100 text-orange-800' // Nuevo color para 'Por Pagar'
         };
         const statusText = {
             pending_approval: 'Pendiente',
             approved: 'Aprobado',
-            rejected: 'Rechazado'
+            rejected: 'Rechazado',
+            paid: 'Pagado',
+            unpaid: 'Por Pagar'
         };
 
         async function loadExpenses() {
@@ -106,19 +135,23 @@
 
         function renderExpenses(expenses) {
             if (expenses.length === 0) {
-                const colspan = userRole === 'admin' ? 6 : 5;
+                const colspan = userRole === 'admin' ? 7 : 6;
                 expensesTbody.innerHTML = `<tr><td colspan="${colspan}" class="text-center py-8 text-gray-500">No hay gastos registrados.</td></tr>`;
                 return;
             }
 
             expensesTbody.innerHTML = expenses.map(expense => {
                 let actionsHtml = '';
-                if (userRole === 'admin' && expense.status === 'pending_approval') {
-                    actionsHtml = `
-                        <button onclick="updateExpenseStatus(${expense.id}, 'approved')" class="text-green-600 hover:text-green-800 font-medium">Aprobar</button>
-                        <button onclick="updateExpenseStatus(${expense.id}, 'rejected')" class="ml-4 text-red-600 hover:text-red-800 font-medium">Rechazar</button>
-                        <button onclick="deleteExpense(${expense.id})" class="ml-4 text-gray-500 hover:text-gray-700 font-medium">Eliminar</button>
-                    `;
+                if (userRole === 'admin') {
+                    // Botón de editar siempre visible para el admin
+                    actionsHtml += `<button onclick='editExpense(${JSON.stringify(expense)})' class="text-indigo-600 hover:text-indigo-800 font-medium">Editar</button>`;
+
+                    if (expense.status === 'pending_approval') {
+                        actionsHtml += `<button onclick="updateExpenseStatus(${expense.id}, 'approved')" class="ml-4 text-green-600 hover:text-green-800 font-medium">Aprobar</button>`;
+                        actionsHtml += `<button onclick="updateExpenseStatus(${expense.id}, 'rejected')" class="ml-4 text-red-600 hover:text-red-800 font-medium">Rechazar</button>`;
+                    }
+                    // El botón de eliminar siempre está disponible para el admin
+                    actionsHtml += `<button onclick="deleteExpense(${expense.id})" class="ml-4 text-gray-500 hover:text-gray-700 font-medium">Eliminar</button>`;
                 }
 
                 // Si el usuario es admin, se muestra la celda de acciones (incluso si está vacía).
@@ -130,12 +163,20 @@
                 return `
                     <tr>
                         <td class="px-4 py-3 text-sm text-gray-900">${new Date(expense.expense_date + 'T00:00:00').toLocaleDateString('es-PE')}</td>
-                        <td class="px-4 py-3 text-sm text-gray-900">${expense.description}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900">
+                            <p>${expense.description}</p>
+                            <p class="text-xs text-gray-500">${expense.supplier || ''}</p>
+                        </td>
                         <td class="px-4 py-3 text-right text-sm font-medium text-gray-900">S/. ${parseFloat(expense.amount).toFixed(2)}</td>
                         <td class="px-4 py-3 text-sm text-gray-500">${expense.user?.username || 'N/A'}</td>
                         <td class="px-4 py-3 text-center text-sm">
                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClasses[expense.status] || ''}">
                                 ${statusText[expense.status] || expense.status}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-center text-sm">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClasses[expense.payment_status] || 'bg-gray-100 text-gray-800'}">
+                                ${statusText[expense.payment_status] || 'N/A'}
                             </span>
                         </td>
                         ${actionsCell}
@@ -147,12 +188,17 @@
         async function handleFormSubmit(e) {
             e.preventDefault();
             const submitButton = expenseForm.querySelector('button[type="submit"]');
+            const expenseId = document.getElementById('expense-id').value;
 
             const expenseData = {
                 description: document.getElementById('description').value,
                 amount: parseFloat(document.getElementById('amount').value),
                 category: document.getElementById('category').value,
-                expense_date: document.getElementById('expense_date').value
+                expense_date: document.getElementById('expense_date').value,
+                payment_status: document.getElementById('payment_status').value,
+                payment_method: document.getElementById('payment_method').value,
+                supplier: document.getElementById('supplier').value,
+                voucher_ref: document.getElementById('voucher_ref').value
             };
 
             // Mejora: Validación básica en el frontend
@@ -168,9 +214,12 @@
             submitButton.disabled = true;
             submitButton.textContent = 'Registrando...';
 
+            const method = expenseId ? 'PUT' : 'POST';
+            const url = expenseId ? `/api/expenses/${expenseId}` : '/api/expenses';
+
             try {
-                const response = await fetch('/api/expenses', {
-                    method: 'POST',
+                const response = await fetch(url, {
+                    method: method,
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify(expenseData)
                 });
@@ -178,7 +227,7 @@
                 if (!response.ok) throw new Error(result.message);
                 
                 showToast(result.message, 'success');
-                expenseForm.reset();
+                resetForm();
                 document.getElementById('expense_date').value = new Date().toLocaleDateString('en-CA');
                 loadExpenses();
             } catch (error) {
@@ -187,6 +236,31 @@
                 submitButton.disabled = false;
                 submitButton.textContent = 'Registrar Gasto';
             }
+        }
+
+        function editExpense(expense) {
+            document.getElementById('form-title').innerText = 'Editar Gasto';
+            document.getElementById('expense-id').value = expense.id;
+            document.getElementById('description').value = expense.description;
+            document.getElementById('amount').value = expense.amount;
+            document.getElementById('category').value = expense.category || '';
+            document.getElementById('expense_date').value = expense.expense_date;
+            document.getElementById('payment_status').value = expense.payment_status;
+            document.getElementById('payment_method').value = expense.payment_method || '';
+            document.getElementById('supplier').value = expense.supplier || '';
+            document.getElementById('voucher_ref').value = expense.voucher_ref || '';
+
+            document.getElementById('cancel-edit-btn').classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function resetForm() {
+            document.getElementById('form-title').innerText = 'Registrar Nuevo Gasto';
+            expenseForm.reset();
+            document.getElementById('expense-id').value = '';
+            document.getElementById('expense_date').value = new Date().toLocaleDateString('en-CA');
+            document.getElementById('cancel-edit-btn').classList.add('hidden');
+            expenseForm.querySelector('button[type="submit"]').textContent = 'Registrar Gasto';
         }
 
         async function updateExpenseStatus(expenseId, newStatus) {
@@ -225,8 +299,25 @@
             }
         }
 
+        async function loadPaymentMethods() {
+            try {
+                const response = await fetch('/api/payment-methods');
+                const methods = await response.json();
+                const select = document.getElementById('payment_method');
+                select.innerHTML = methods.map(m => `<option value="${m}">${m}</option>`).join('');
+            } catch (error) {
+                showToast('No se pudieron cargar los métodos de pago.', 'error');
+            }
+        }
+
         window.onload = () => {
             try {
+                // Añadir un input oculto para el ID del gasto
+                const hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.id = 'expense-id';
+                expenseForm.prepend(hiddenInput);
+
                 const payload = JSON.parse(atob(token.split('.')[1]));
                 userRole = payload.role;
             } catch (e) {
@@ -240,6 +331,8 @@
 
             document.getElementById('expense_date').value = new Date().toLocaleDateString('en-CA');
             expenseForm.addEventListener('submit', handleFormSubmit);
+            document.getElementById('cancel-edit-btn').addEventListener('click', resetForm);
+            loadPaymentMethods();
             loadExpenses();
         };
 

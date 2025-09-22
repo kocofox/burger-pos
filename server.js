@@ -388,6 +388,16 @@ app.post('/api/orders', verifyToken, checkRole(['admin', 'cashier']), async (req
             user_id: userId
         }, { transaction: t });
 
+        // NUEVO: Si el método de pago es 'Por Cobrar', registrar la deuda.
+        if (paymentMethod === 'Por Cobrar') {
+            await db.CustomerCredit.create({
+                customer_id: finalCustomerId,
+                order_id: order.id,
+                amount: total,
+                status: 'unpaid'
+            }, { transaction: t });
+        }
+
         // 4. Insertar items y actualizar stock
         const orderItemsData = items.map(item => ({ ...item, order_id: order.id, product_id: item.productId, price_at_time: item.price, sauces: JSON.stringify(item.sauces || []) }));
         await db.OrderItem.bulkCreate(orderItemsData, { transaction: t });
@@ -1866,13 +1876,16 @@ function generateSalesReportPdf(res, data, user) {
     const { orders, totalRevenue, expenses, totalExpenses, netProfit, startDate, endDate } = data;
     const doc = new PDFDocument({ size: 'A4', margin: 40, layout: 'portrait' });
 
-    const formattedStartDate = new Date(startDate + 'T00:00:00').toLocaleDateString('es-PE');
-    const formattedEndDate = new Date(endDate + 'T00:00:00').toLocaleDateString('es-PE');
+    // Formato completo para el encabezado (DD de Mes de YYYY)
+    const optionsFull = { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Lima' };
+    const formattedStartDate = new Date(startDate + 'T05:00:00').toLocaleDateString('es-PE', optionsFull);
+    const formattedEndDate = new Date(endDate + 'T05:00:00').toLocaleDateString('es-PE', optionsFull);
     const filename = `Reporte-Rentabilidad-${formattedStartDate}-al-${formattedEndDate}.pdf`;
 
     res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-type', 'application/pdf');
     doc.pipe(res);
+    const optionsShort = { day: '2-digit', month: '2-digit', timeZone: 'America/Lima' };
 
     // --- Header ---
     doc.fontSize(18).font('Helvetica-Bold').text('Reporte de Rentabilidad', { align: 'center' });
@@ -1889,7 +1902,11 @@ function generateSalesReportPdf(res, data, user) {
     doc.fontSize(14).font('Helvetica-Bold').text('Detalle de Pedidos').moveDown(0.5);
     const orderTableTop = doc.y;
     doc.font('Helvetica-Bold').fontSize(9);
-    doc.text('Fecha', 40, orderTableTop).text('Cliente', 100, orderTableTop).text('Items', 250, orderTableTop).text('Total', 490, orderTableTop, { width: 60, align: 'right' });
+    doc.text('Fecha', 40, orderTableTop, { width: 50 })
+       .text('Cliente', 100, orderTableTop, { width: 100 })
+       .text('Items', 210, orderTableTop, { width: 190 })
+       .text('Pago', 410, orderTableTop, { width: 80 })
+       .text('Total', 495, orderTableTop, { width: 60, align: 'right' });
     doc.moveDown(0.5).strokeColor("#cccccc").lineWidth(0.5).moveTo(40, doc.y).lineTo(555, doc.y).stroke();
     doc.font('Helvetica').fontSize(8);
 
@@ -1897,9 +1914,19 @@ function generateSalesReportPdf(res, data, user) {
 
     orders.forEach(order => {
         const itemsList = order.orderItems.map(item => `${item.quantity}x ${item.product?.name || 'N/A'}`).join(', ');
+        
+        let paymentMethodDisplay = order.payment_method || 'N/A';
+        let paymentMethodFont = 'Helvetica';
+        if (order.status === 'cancelled') {
+            paymentMethodDisplay = 'ANULADO';
+            paymentMethodFont = 'Helvetica-Oblique';
+        } else if (order.payment_method === 'Por Cobrar') {
+            paymentMethodDisplay = 'Por Cobrar';
+            paymentMethodFont = 'Helvetica-Bold'; // Resaltar en negrita
+        }
 
         // Calcular la altura que ocupará la fila, especialmente la columna de items.
-        const itemsHeight = doc.heightOfString(itemsList, { width: 230 });
+        const itemsHeight = doc.heightOfString(itemsList, { width: 190 }); // Ajustar ancho para items
         const rowHeight = Math.max(itemsHeight, 20); // Mínimo 20 para que no se vea muy apretado.
 
         // Si la fila no cabe en la página actual, añadir una nueva.
@@ -1909,9 +1936,10 @@ function generateSalesReportPdf(res, data, user) {
 
         doc.moveDown(0.5);
         const rowY = doc.y;
-        doc.text(new Date(order.timestamp).toLocaleDateString('es-PE'), 40, rowY, { width: 50 });
+        doc.text(new Date(order.timestamp).toLocaleDateString('es-PE', optionsShort), 40, rowY, { width: 50 });
         doc.text(order.customer?.full_name || 'N/A', 100, rowY, { width: 140 });
-        doc.text(itemsList, 250, rowY, { width: 230 });
+        doc.text(itemsList, 210, rowY, { width: 190 }); // Ajustar posición y ancho
+        doc.font(paymentMethodFont).text(paymentMethodDisplay, 410, rowY, { width: 80 }); // Nueva columna para método de pago
         doc.font(order.status === 'cancelled' ? 'Helvetica-Oblique' : 'Helvetica-Bold').text(order.status === 'cancelled' ? `ANULADO` : `S/. ${parseFloat(order.total).toFixed(2)}`, 490, rowY, { width: 60, align: 'right' }).font('Helvetica');
         doc.y = rowY + rowHeight; // Mover el cursor 'y' a la posición correcta después de dibujar la fila.
     });
@@ -1928,7 +1956,11 @@ function generateSalesReportPdf(res, data, user) {
         expenses.forEach(expense => {
             doc.moveDown(0.5);
             const rowY = doc.y;
-            doc.text(new Date(expense.expense_date + 'T00:00:00').toLocaleDateString('es-PE'), 40, rowY, { width: 50 }).text(expense.description, 100, rowY, { width: 380 });
+            // Formato personalizado para día y mes abreviado (ej: 23 Set)
+            const expenseDate = new Date(expense.expense_date + 'T05:00:00');
+            const day = expenseDate.getDate();
+            const month = expenseDate.toLocaleString('es-PE', { month: 'short' }).replace('.', ''); // 'Set.' -> 'Set'
+            doc.text(`${day} ${month.charAt(0).toUpperCase() + month.slice(1)}`, 40, rowY, { width: 50 }).text(expense.description, 100, rowY, { width: 380 });
             doc.font('Helvetica-Bold').text(`S/. ${parseFloat(expense.amount).toFixed(2)}`, 490, rowY, { width: 60, align: 'right' }).font('Helvetica');
         });
     }
@@ -2263,7 +2295,7 @@ app.get('/api/expenses', verifyToken, checkRole(['admin', 'cashier']), async (re
 });
 
 app.post('/api/expenses', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
-    const { description, quantity, unit, amount, category, expense_date } = req.body;
+    const { description, amount, category, expense_date, payment_status, payment_method, supplier, voucher_ref } = req.body;
     try {
         // NUEVA LÓGICA: El estado depende del rol del usuario.
         // Si es admin, se aprueba automáticamente. Si es cajero, queda pendiente.
@@ -2271,12 +2303,14 @@ app.post('/api/expenses', verifyToken, checkRole(['admin', 'cashier']), async (r
  
         await db.Expense.create({
             description,
-            quantity,
-            unit,
             amount,
             category,
             expense_date,
             status,
+            payment_status,
+            payment_method,
+            supplier,
+            voucher_ref,
             user_id: req.user.id
         });
         res.status(201).json({ message: 'Gasto registrado exitosamente.' });
@@ -2306,9 +2340,17 @@ app.put('/api/expenses/:id/status', verifyToken, checkRole(['admin']), async (re
 
 app.put('/api/expenses/:id', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     const { id } = req.params;
-    const { description, quantity, unit, amount, category, expense_date, status } = req.body;
+    // Campos que se pueden editar (incluimos quantity y unit para consistencia)
+    const { description, amount, category, expense_date, payment_status, payment_method, supplier, voucher_ref, quantity, unit } = req.body;
     try {
-        const [affectedRows] = await db.Expense.update({ description, quantity, unit, amount, category, expense_date, status }, { where: { id } });
+        const updateData = { description, amount, category, expense_date, payment_status, payment_method, supplier, voucher_ref, quantity, unit };
+
+        // Un cajero no puede cambiar el estado de aprobación, solo el admin.
+        if (req.user.role === 'admin' && req.body.status) {
+            updateData.status = req.body.status;
+        }
+
+        const [affectedRows] = await db.Expense.update(updateData, { where: { id } });
         if (affectedRows === 0) return res.status(404).json({ message: 'Gasto no encontrado.' });
         res.json({ message: 'Gasto actualizado exitosamente.' });
     } catch (error) {
@@ -2325,6 +2367,49 @@ app.delete('/api/expenses/:id', verifyToken, checkRole(['admin']), async (req, r
         res.json({ message: 'Gasto eliminado exitosamente.' });
     } catch (error) {
         console.error("Error al eliminar el gasto:", error);
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+// --- Admin Management: Customer Credits (Accounts Receivable) ---
+
+app.get('/api/credits/receivable', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { customerId, status } = req.query;
+    try {
+        const whereClause = {};
+        if (customerId) whereClause.customer_id = customerId;
+        if (status) whereClause.status = status;
+
+        const credits = await db.CustomerCredit.findAll({
+            where: whereClause,
+            include: [
+                { model: db.Customer, as: 'customer', attributes: ['full_name'] },
+                { model: db.Order, as: 'order', attributes: ['timestamp'] }
+            ],
+            order: [['createdAt', 'DESC']]
+        });
+        res.json(credits);
+    } catch (error) {
+        console.error("Error al obtener cuentas por cobrar:", error);
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+app.post('/api/credits/:creditId/pay', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { creditId } = req.params;
+    const { payment_method } = req.body;
+    if (!payment_method) {
+        return res.status(400).json({ message: 'Se requiere un método de pago.' });
+    }
+    try {
+        const [affectedRows] = await db.CustomerCredit.update(
+            { status: 'paid', paid_at: new Date(), payment_method },
+            { where: { id: creditId, status: 'unpaid' } }
+        );
+        if (affectedRows === 0) return res.status(404).json({ message: 'Deuda no encontrada o ya fue pagada.' });
+        res.json({ message: 'Pago de deuda registrado exitosamente.' });
+    } catch (error) {
+        console.error(`Error al registrar pago de deuda ${creditId}:`, error);
         res.status(500).send('Error interno del servidor');
     }
 });
@@ -2474,6 +2559,10 @@ app.get('/login.html', (req, res) => {
 
 app.get('/sales-report.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'sales-report.html'));
+});
+
+app.get('/accounts-receivable.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'accounts-receivable.html'));
 });
 
 // =================================================================

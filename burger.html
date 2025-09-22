@@ -133,7 +133,7 @@
                 <div id="payment-methods" class="grid grid-cols-2 gap-4"></div>
             </div>
             <!-- Nueva sección para el cálculo de cambio en efectivo -->
-            <div id="cash-payment-section" class="hidden mt-4">
+            <div id="cash-payment-section" class="hidden mt-4 p-4 bg-blue-50 rounded-lg">
                 <label for="cash-received" class="block text-sm font-medium text-gray-700">Efectivo Recibido (S/.)</label>
                 <input type="number" id="cash-received" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" placeholder="Ej: 50.00">
                 <div class="mt-2 text-right">
@@ -506,7 +506,7 @@
                 openAccountBtn.classList.remove('hidden');
                 paymentMethodsContainer.classList.add('hidden');
             } else if (orderMode === 'pickup') {
-                confirmOrderBtn.classList.remove('hidden');
+                confirmOrderBtn.classList.remove('hidden'); // Aseguramos que el botón sea visible
                 paymentMethodsContainer.classList.remove('hidden');
             } else if (orderMode === 'add_items') {
                 pageTitle.innerText = 'Añadir a Cuenta';
@@ -801,12 +801,25 @@
         function handlePaymentMethodChange() {
             const selectedPaymentMethod = document.querySelector('input[name="payment"]:checked')?.value;
             const cashSection = document.getElementById('cash-payment-section');
+            const confirmButton = document.getElementById('confirm-order-button');
+
             // Asegurarse de que cashSection exista antes de manipularlo
             if (cashSection) {
                 if (selectedPaymentMethod && selectedPaymentMethod.toLowerCase() === 'efectivo') {
                     cashSection.classList.remove('hidden');
                 } else {
                     cashSection.classList.add('hidden');
+                }
+            }
+
+            if (confirmButton) {
+                if (selectedPaymentMethod && selectedPaymentMethod === 'Por Cobrar') {
+                    confirmButton.classList.remove('hidden'); // Asegurarse de que el botón sea visible
+                    confirmButton.textContent = 'Enviar a Crédito';
+                    confirmButton.className = 'px-6 py-2 bg-orange-600 text-white font-bold rounded-lg hover:bg-orange-700';
+                } else {
+                    confirmButton.textContent = 'Enviar y Cobrar';
+                    confirmButton.className = 'px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700';
                 }
             }
         }

@@ -163,6 +163,7 @@
                         actionsHtml += `<button onclick="generateClosurePdf(${session.id})" class="ml-4 text-blue-600 hover:text-blue-800 font-medium">PDF</button>`;
                         actionsHtml += `<button onclick="reopenSession(${session.id})" class="ml-4 text-yellow-600 hover:text-yellow-800 font-medium">Reabrir</button>`;
                     } else if (session.status === 'open') {
+                        actionsHtml += `<button onclick="showDetailsModal(${session.id})" class="text-indigo-600 hover:text-indigo-800 font-medium">Detalle</button>`;
                         actionsHtml += `<button onclick="forceCloseSession(${session.id})" class="text-red-600 hover:text-red-800 font-medium">Forzar Cierre</button>`;
                     }
                 }
@@ -240,10 +241,10 @@
                 const { session, totalSales, totalExpenses, salesByPaymentMethod } = data;
 
                 const startAmount = parseFloat(session.start_amount);
-                const endAmount = parseFloat(session.end_amount);
+                const endAmount = session.end_amount ? parseFloat(session.end_amount) : null;
                 const totalCashSales = salesByPaymentMethod['Efectivo'] || 0;
                 const expectedInBox = startAmount + totalCashSales - totalExpenses;
-                const difference = endAmount - expectedInBox;
+                const difference = endAmount !== null ? endAmount - expectedInBox : null;
 
                 let salesBreakdownHtml = Object.entries(salesByPaymentMethod)
                     .map(([method, amount]) => `<p class="flex justify-between text-sm pl-4"><span>- ${method}:</span> <span>S/. ${amount.toFixed(2)}</span></p>`)
@@ -262,15 +263,19 @@
                     <p class="flex justify-between"><span>(-) Gastos Registrados:</span> <strong>S/. ${totalExpenses.toFixed(2)}</strong></p>
                     <hr class="my-1 border-gray-300">
                     <p class="flex justify-between font-bold"><span>(=) Total Esperado en Caja:</span> <span>S/. ${expectedInBox.toFixed(2)}</span></p>
-                    <p class="flex justify-between"><span>Monto Contado Real:</span> <strong>S/. ${endAmount.toFixed(2)}</strong></p>
+                    <p class="flex justify-between"><span>Monto Contado Real:</span> <strong>${endAmount !== null ? `S/. ${endAmount.toFixed(2)}` : 'Caja Abierta'}</strong></p>
                 `;
 
-                if (difference === 0) {
-                    differenceDiv.innerHTML = `<span class="text-green-600">Caja Cuadrada (Diferencia: S/. 0.00)</span>`;
-                } else if (difference > 0) {
-                    differenceDiv.innerHTML = `<span class="text-blue-600">Sobrante: S/. ${difference.toFixed(2)}</span>`;
+                if (difference !== null) {
+                    if (difference === 0) {
+                        differenceDiv.innerHTML = `<span class="text-green-600">Caja Cuadrada (Diferencia: S/. 0.00)</span>`;
+                    } else if (difference > 0) {
+                        differenceDiv.innerHTML = `<span class="text-blue-600">Sobrante: S/. ${difference.toFixed(2)}</span>`;
+                    } else {
+                        differenceDiv.innerHTML = `<span class="text-red-600">Faltante: S/. ${Math.abs(difference).toFixed(2)}</span>`;
+                    }
                 } else {
-                    differenceDiv.innerHTML = `<span class="text-red-600">Faltante: S/. ${Math.abs(difference).toFixed(2)}</span>`;
+                    differenceDiv.innerHTML = `<span class="text-gray-500">Cálculo pendiente hasta el cierre.</span>`;
                 }
 
             } catch (error) {

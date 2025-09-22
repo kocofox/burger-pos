@@ -29,9 +29,9 @@ module.exports = (sequelize, DataTypes) => {
     },
     category: DataTypes.STRING,
     status: {
-      type: DataTypes.ENUM('pending', 'approved', 'rejected'),
+      type: DataTypes.ENUM('pending_approval', 'approved', 'rejected'),
       allowNull: false,
-      defaultValue: 'pending'
+      defaultValue: 'pending_approval'
     },
     expense_date: {
       type: DataTypes.DATEONLY,
@@ -40,7 +40,16 @@ module.exports = (sequelize, DataTypes) => {
     user_id: {
       type: DataTypes.INTEGER,
       allowNull: true // O false si siempre debe haber un usuario
-    }
+    },
+    // NUEVOS CAMPOS AÑADIDOS
+    payment_status: {
+      type: DataTypes.ENUM('paid', 'unpaid'),
+      allowNull: false,
+      defaultValue: 'paid'
+    },
+    payment_method: DataTypes.STRING,
+    supplier: DataTypes.STRING,
+    voucher_ref: DataTypes.STRING
   }, {
     sequelize,
     modelName: 'Expense',
