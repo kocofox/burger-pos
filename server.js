@@ -1755,7 +1755,7 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
 
         // Si el rol es 'cashier', solo puede ver sus propias ventas.
         if (role === 'cashier') {
-            whereClause.user_id = userId;
+            whereClause.user_id = userId; // Correcto
         }
 
         const orders = await db.Order.findAll({
@@ -1763,13 +1763,13 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
             include: [
                 {
                     model: db.Customer,
-                    as: 'customer',
+                    as: 'customer', // Correcto
                     attributes: ['full_name'],
                     required: false // Esto convierte el JOIN en un LEFT JOIN
                 },
                 {
                     model: db.User,
-                    as: 'user',
+                    as: 'user', // Correcto
                     attributes: ['username'],
                     required: false // Esto convierte el JOIN en un LEFT JOIN
                 },
@@ -1810,7 +1810,7 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
             query: req.query
         });
         res.status(500).json({ message: 'Error interno del servidor al generar reporte de ventas.' });
-    }
+    } 
 });
 
 // NUEVO: Endpoint para generar el reporte de ventas/rentabilidad en PDF
