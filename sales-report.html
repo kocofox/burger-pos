@@ -65,14 +65,28 @@
              <div class="self-end">
                 <button id="clear-filter-button" class="w-full bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600">Limpiar</button>
             </div>
+            <div class="self-end">
+                <button id="export-pdf-button" class="w-full bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clip-rule="evenodd" /></svg>
+                    Exportar PDF
+                </button>
+            </div>
         </div>
 
         <!-- Resumen y Resultados -->
         <div id="report-container" class="bg-white p-6 rounded-lg shadow-md">
-            <div id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-center">
+            <div id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-center border-b pb-6">
                 <div>
-                    <h3 class="text-sm font-medium text-gray-500">Venta Total</h3>
-                    <p id="total-revenue" class="text-2xl font-bold text-gray-800">S/. 0.00</p>
+                    <h3 class="text-sm font-medium text-gray-500">Ingresos (Ventas)</h3>
+                    <p id="total-revenue" class="text-2xl font-bold text-green-600">S/. 0.00</p>
+                </div>
+                <div>
+                    <h3 class="text-sm font-medium text-gray-500">Gastos</h3>
+                    <p id="total-expenses" class="text-2xl font-bold text-red-600">S/. 0.00</p>
+                </div>
+                <div>
+                    <h3 class="text-sm font-medium text-gray-500">Utilidad Neta</h3>
+                    <p id="net-profit" class="text-2xl font-bold text-blue-600">S/. 0.00</p>
                 </div>
                 <div>
                     <h3 class="text-sm font-medium text-gray-500">Nº de Pedidos</h3>
@@ -85,6 +99,7 @@
             </div>
 
             <div id="orders-table-container" class="overflow-x-auto">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">Detalle de Pedidos</h3>
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
@@ -102,6 +117,25 @@
                     </tbody>
                 </table>
             </div>
+
+            <div id="expenses-table-container" class="overflow-x-auto mt-12">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">Detalle de Gastos</h3>
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descripción</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoría</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Monto</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registrado por</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expenses-tbody" class="bg-white divide-y divide-gray-200">
+                        <!-- Filas de gastos se insertarán aquí -->
+                        <tr><td colspan="5" class="text-center py-8 text-gray-500">No se encontraron gastos.</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -113,10 +147,14 @@
         const customerResultsContainer = document.getElementById('customer-results');
         const filterButton = document.getElementById('filter-button');
         const clearFilterButton = document.getElementById('clear-filter-button');
+        const exportPdfButton = document.getElementById('export-pdf-button');
         const loader = document.getElementById('loader');
         const ordersTbody = document.getElementById('orders-tbody');
         const totalRevenueEl = document.getElementById('total-revenue');
+        const totalExpensesEl = document.getElementById('total-expenses');
+        const netProfitEl = document.getElementById('net-profit');
         const totalOrdersEl = document.getElementById('total-orders');
+        const expensesTbody = document.getElementById('expenses-tbody');
 
         let selectedCustomer = null;
 
@@ -155,6 +193,7 @@
 
         // --- Lógica de Filtro y Carga de Datos ---
         filterButton.addEventListener('click', fetchSalesData);
+        exportPdfButton.addEventListener('click', exportReportToPdf);
         clearFilterButton.addEventListener('click', () => {
             startDateInput.value = '';
             endDateInput.value = '';
@@ -163,8 +202,12 @@
             selectedCustomer = null;
             // Simplemente limpiamos la tabla y los totales
             totalRevenueEl.textContent = 'S/. 0.00';
+            totalExpensesEl.textContent = 'S/. 0.00';
+            netProfitEl.textContent = 'S/. 0.00';
             totalOrdersEl.textContent = '0';
             ordersTbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-500">Filtros limpiados. Selecciona un rango de fechas para empezar.</td></tr>`;
+            expensesTbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-gray-500"></td></tr>`;
+
         });
 
         async function fetchSalesData() {
@@ -175,6 +218,7 @@
             if (!startDate || !endDate) {
                 // Si las fechas están vacías, no hacemos la petición y mostramos el mensaje inicial.
                 ordersTbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-500">Selecciona un rango de fechas para empezar.</td></tr>`;
+                expensesTbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-gray-500"></td></tr>`;
                 return;
             }
 
@@ -210,6 +254,7 @@
                 console.error("Error detallado al cargar el reporte de ventas:", error);
                 // Mostramos un mensaje de error más específico al usuario si es posible.
                 // El mensaje completo del error se verá en la consola de desarrollador.
+                totalRevenueEl.textContent = 'Error';
                 ordersTbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-red-500">Error al cargar el reporte. Revisa la consola para más detalles.</td></tr>`;
             } finally {
                 loader.classList.add('hidden');
@@ -218,7 +263,9 @@
 
         function renderReport(data) {
             totalRevenueEl.textContent = `S/. ${parseFloat(data.totalRevenue).toFixed(2)}`;
+            totalExpensesEl.textContent = `S/. ${parseFloat(data.totalExpenses).toFixed(2)}`;
             totalOrdersEl.textContent = data.totalOrders;
+            netProfitEl.textContent = `S/. ${parseFloat(data.netProfit).toFixed(2)}`;
 
             if (data.orders.length === 0) {
                 ordersTbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-500">No se encontraron ventas para los filtros seleccionados.</td></tr>`;
@@ -226,7 +273,7 @@
             }
 
             ordersTbody.innerHTML = data.orders.map(order => {
-                const itemsList = order.orderItems.map(item => `<li>${item.quantity}x ${item.product.name}</li>`).join('');
+                const itemsList = order.orderItems.map(item => `<li>${item.quantity}x ${item.product?.name || 'Producto eliminado'}</li>`).join('');
                 const isCancelled = order.status === 'cancelled';
                 const rowClass = isCancelled ? 'bg-red-50 text-gray-400 line-through' : 'hover:bg-gray-50';
 
@@ -241,6 +288,64 @@
                     </tr>
                 `;
             }).join('');
+
+            // NUEVO: Renderizar la tabla de gastos
+            if (data.expenses.length === 0) {
+                expensesTbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-gray-500">No se encontraron gastos para los filtros seleccionados.</td></tr>`;
+            } else {
+                expensesTbody.innerHTML = data.expenses.map(expense => `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${new Date(expense.expense_date + 'T00:00:00').toLocaleDateString('es-PE')}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">${expense.description}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${expense.category || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900">S/. ${parseFloat(expense.amount).toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${expense.user?.username || 'N/A'}</td>
+                    </tr>
+                `).join('');
+            }
+
+        }
+
+        async function exportReportToPdf() {
+            const startDate = startDateInput.value;
+            const endDate = endDateInput.value;
+            const customerId = customerIdInput.value;
+
+            if (!startDate || !endDate) {
+                alert('Por favor, selecciona un rango de fechas para exportar.');
+                return;
+            }
+
+            exportPdfButton.disabled = true;
+            exportPdfButton.innerHTML = 'Generando...';
+
+            try {
+                const response = await fetch('/api/reports/sales/pdf', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ startDate, endDate, customerId })
+                });
+
+                if (!response.ok) throw new Error('Error al generar el PDF.');
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = response.headers.get('Content-Disposition').split('filename=')[1].replace(/"/g, '');
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            } catch (error) {
+                alert(error.message);
+            } finally {
+                exportPdfButton.disabled = false;
+                exportPdfButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clip-rule="evenodd" /></svg> Exportar PDF';
+            }
         }
 
         // Inicializar fechas por defecto al cargar la página

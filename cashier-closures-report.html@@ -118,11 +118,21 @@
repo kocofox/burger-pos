@@ -96,7 +96,6 @@
         const userFilter = document.getElementById('user-filter');
         const filterButton = document.getElementById('filter-button');
         const closuresTbody = document.getElementById('closures-tbody');
-        let userRole = '';
 
         const statusClasses = {
             pending_approval: 'bg-yellow-100 text-yellow-800',
@@ -147,8 +146,8 @@
         }
 
         function renderHistory(data) {
-            // La variable userRole se define globalmente en window.onload
-            // y se usa aquí para renderizar los botones correctos.
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            const userRole = payload.role;
 
             if (data.length === 0) {
                 closuresTbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-500">No se encontraron registros para los filtros seleccionados.</td></tr>`;
@@ -328,13 +327,6 @@
             loadUsersForFilter();
             fetchClosuresHistory();
 
-            // Decodificar el token para obtener el rol del usuario
-            try {
-                const payload = JSON.parse(atob(token.split('.')[1]));
-                userRole = payload.role;
-            } catch (e) {
-                console.error("Error al decodificar el token:", e);
-            }
             filterButton.addEventListener('click', fetchClosuresHistory);
 
             // Lógica para cerrar el modal de detalles

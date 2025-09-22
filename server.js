@@ -1143,6 +1143,91 @@ app.post('/api/reports/regenerate', verifyToken, checkRole(['admin']), async (re
     }
 });
 
+// NUEVO ENDPOINT: Obtener resumen del día para el modal de cierre del admin
+app.get('/api/admin/daily-summary', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { date } = req.query;
+    const targetDateStr = date || new Date().toLocaleDateString('en-CA');
+    const { start, end } = getOperationalDayRange(targetDateStr);
+
+    try {
+        // 1. Datos de ventas y gastos (igual que en getReportData)
+        const where = {
+            timestamp: { [Op.between]: [start, end] },
+            status: { [Op.not]: 'cancelled' }
+        };
+        const totalSales = await db.Order.sum('total', { where }) || 0;
+        const paymentReport = await db.Order.findAll({
+            attributes: ['payment_method', [db.sequelize.fn('SUM', db.sequelize.col('total')), 'total_revenue']],
+            where: { ...where, payment_method: { [Op.ne]: null } },
+            group: ['payment_method']
+        });
+        const expensesReport = await db.Expense.findAll({
+            where: { expense_date: targetDateStr, status: 'approved' }
+        });
+        const totalExpenses = expensesReport.reduce((sum, expense) => sum + parseFloat(expense.amount), 0);
+
+        // 2. Datos de los cierres de caja de los cajeros para ese día
+        const cashierSessions = await db.CashierSession.findAll({
+            where: { start_time: { [Op.between]: [start, end] } },
+            include: [{ model: db.User, as: 'user', attributes: ['username'] }]
+        });
+
+        // 3. Calcular la diferencia para cada sesión de cajero
+        const sessionsWithDetails = await Promise.all(cashierSessions.map(async (session) => {
+            if (session.status === 'open') {
+                return { ...session.toJSON(), difference: null };
+            }
+            const details = await getCashierSessionDetails(session.id);
+            return { ...session.toJSON(), ...details };
+        }));
+
+        const salesByPaymentMethod = {};
+        paymentReport.forEach(item => {
+            salesByPaymentMethod[item.get('payment_method')] = parseFloat(item.get('total_revenue'));
+        });
+
+        res.json({
+            totalSales,
+            totalExpenses,
+            salesByPaymentMethod,
+            cashierSessions: sessionsWithDetails
+        });
+
+    } catch (error) {
+        console.error(`Error detallado en GET /api/admin/daily-summary:`, {
+            message: error.message, stack: error.stack, query: req.query
+        });
+        res.status(500).json({ message: 'Error interno al obtener el resumen del día.' });
+    }
+});
+
+async function getCashierSessionDetails(sessionId) {
+    // Función de ayuda para obtener los detalles de una sesión de caja específica.
+    const session = await db.CashierSession.findByPk(sessionId);
+    if (!session || session.status === 'open') {
+        return { difference: null, totalSales: 0, totalExpenses: 0 };
+    }
+
+    const targetDateStr = new Date(session.start_time).toLocaleDateString('en-CA');
+    const { start, end } = getOperationalDayRange(targetDateStr);
+
+    const where = {
+        user_id: session.user_id,
+        timestamp: { [Op.between]: [start, end] },
+        status: { [Op.not]: 'cancelled' }
+    };
+
+    const totalCashSales = await db.Order.sum('total', { where: { ...where, payment_method: 'Efectivo' } }) || 0;
+    const totalExpenses = await db.Expense.sum('amount', { where: { user_id: session.user_id, expense_date: targetDateStr, status: 'approved' } }) || 0;
+    
+    const startAmount = parseFloat(session.start_amount);
+    const endAmount = parseFloat(session.end_amount);
+    const expectedInBox = startAmount + totalCashSales - totalExpenses;
+    const difference = endAmount - expectedInBox;
+
+    return { difference };
+}
+
 // --- Cashier Session Management ---
 
 // Verificar si el cajero ya inició su caja hoy
@@ -1347,6 +1432,61 @@ app.get('/api/admin/closures/:sessionId/details', verifyToken, checkRole(['admin
     }
 });
 
+// NUEVO: Forzar cierre de una sesión de caja (Admin)
+app.post('/api/admin/closures/:sessionId/force-close', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { sessionId } = req.params;
+    const { countedAmount } = req.body;
+
+    if (countedAmount === undefined || countedAmount < 0) {
+        return res.status(400).json({ message: 'El monto contado es requerido.' });
+    }
+
+    try {
+        const session = await db.CashierSession.findByPk(sessionId);
+        if (!session) {
+            return res.status(404).json({ message: 'Sesión de caja no encontrada.' });
+        }
+        if (session.status !== 'open') {
+            return res.status(400).json({ message: 'Esta sesión no está abierta. No se puede forzar el cierre.' });
+        }
+
+        // Se cierra y se aprueba directamente por el admin.
+        await session.update({
+            end_amount: countedAmount,
+            status: 'approved',
+            end_time: new Date()
+        });
+
+        res.json({ message: 'Cierre de caja forzado y aprobado exitosamente.' });
+
+    } catch (error) {
+        console.error(`Error detallado en POST /api/admin/closures/${sessionId}/force-close:`, {
+            message: error.message, stack: error.stack, requestBody: req.body
+        });
+        res.status(500).json({ message: 'Error interno al forzar el cierre de caja.' });
+    }
+});
+
+// NUEVO: Reabrir una sesión de caja (Admin)
+app.post('/api/admin/closures/:sessionId/reopen', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { sessionId } = req.params;
+    try {
+        const session = await db.CashierSession.findByPk(sessionId);
+        if (!session) {
+            return res.status(404).json({ message: 'Sesión de caja no encontrada.' });
+        }
+        if (session.status === 'open') {
+            return res.status(400).json({ message: 'Esta sesión ya está abierta.' });
+        }
+
+        await session.update({ status: 'open', end_amount: null, end_time: null });
+        res.json({ message: 'Sesión de caja reabierta exitosamente.' });
+    } catch (error) {
+        console.error(`Error detallado en POST /api/admin/closures/${sessionId}/reopen:`, { message: error.message, stack: error.stack });
+        res.status(500).json({ message: 'Error interno al reabrir la sesión de caja.' });
+    }
+});
+
 app.get('/api/admin/closures-history', verifyToken, checkRole(['admin']), async (req, res) => {
     const { startDate, endDate, userId } = req.query;
     try {
@@ -1356,6 +1496,11 @@ app.get('/api/admin/closures-history', verifyToken, checkRole(['admin']), async 
             const startRange = getOperationalDayRange(startDate).start;
             const endRange = getOperationalDayRange(endDate).end;
             whereClause.start_time = { [Op.between]: [startRange, endRange] };
+        }
+        // Si no se proveen fechas, se muestran todas las sesiones, incluidas las abiertas.
+        // Si se proveen fechas, se asume que se busca un historial de sesiones ya cerradas o pendientes.
+        if (!startDate && !endDate) {
+            // No se aplica filtro de estado, se traen todas.
         }
         if (userId) {
             whereClause.user_id = userId;
@@ -1575,14 +1720,23 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
     });
     try {
         const whereClause = {
-            // MODIFICACIÓN: Usar el rango del día operativo para consistencia con otros reportes.
-            // Esto asegura que las ventas de madrugada se asignen al día correcto.
             timestamp: {
                 [Op.between]: [getOperationalDayRange(startDate).start, getOperationalDayRange(endDate).end]
             }
-            // MODIFICACIÓN: Eliminamos el filtro de estado aquí para traer todos los pedidos,
-            // incluidos los anulados, y manejarlos en el frontend.
-            // status: { [Op.in]: ['paid', 'completed'] } 
+        };
+
+        // NUEVO: Obtener los gastos para el mismo rango de fechas.
+        // Usamos las fechas directas porque los gastos se registran por día, no por hora operativa.
+        const expensesWhereClause = {
+            expense_date: {
+                [Op.between]: [startDate, endDate]
+            },
+            status: 'approved'
+        };
+
+        // Si el rol es cajero, solo ve sus propios gastos.
+        if (role === 'cashier') {
+            expensesWhereClause.user_id = userId;
         };
 
         if (customerId) {
@@ -1591,9 +1745,7 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
 
         // Si el rol es 'cashier', solo puede ver sus propias ventas.
         if (role === 'cashier') {
-            // CORRECCIÓN: Especificar el modelo para evitar ambigüedad en la consulta con JOINs.
-            // Se usa '$Order.user_id$' para referirse a la columna 'user_id' de la tabla 'orders'.
-            whereClause['$Order.user_id$'] = userId;
+            whereClause.user_id = userId;
         }
 
         const orders = await db.Order.findAll({
@@ -1614,12 +1766,9 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
                 {
                     model: db.OrderItem,
                     as: 'orderItems',
-                    attributes: ['quantity'],
-                    // CORRECCIÓN: Añadir required: false para que sea un LEFT JOIN.
-                    // Esto previene errores si un OrderItem apunta a un producto que fue eliminado.
+                    attributes: ['quantity', 'price_at_time'],
                     include: [
-                        { model: db.Product, as: 'product', attributes: ['name'], required: false }
-                    ],
+                        { model: db.Product, as: 'product', attributes: ['name'], required: false }],
                     required: false // Asegura que se devuelvan pedidos incluso si no tienen items.
                 }
             ],
@@ -1627,9 +1776,21 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
         });
 
         // MODIFICACIÓN: Calculamos el ingreso total solo de los pedidos que NO están anulados.
-        const totalRevenue = orders.filter(o => o.status !== 'cancelled').reduce((sum, order) => sum + parseFloat(order.total), 0);
+        const validOrders = orders.filter(o => o.status !== 'cancelled');
+        const totalRevenue = validOrders.reduce((sum, order) => sum + parseFloat(order.total), 0);
 
-        res.json({ orders, totalOrders: orders.length, totalRevenue });
+        // NUEVO: Obtener los gastos y calcular el total.
+        const expenses = await db.Expense.findAll({
+            where: expensesWhereClause,
+            include: [{ model: db.User, as: 'user', attributes: ['username'] }],
+            order: [['expense_date', 'DESC']]
+        });
+        const totalExpenses = expenses.reduce((sum, expense) => sum + parseFloat(expense.amount), 0);
+
+        // NUEVO: Calcular la utilidad neta.
+        const netProfit = totalRevenue - totalExpenses;
+
+        res.json({ orders, totalOrders: orders.length, totalRevenue, expenses, totalExpenses, netProfit });
     } catch (error) {
         // Logging mejorado
         console.error("Error detallado en GET /api/reports/sales:", {
@@ -1641,6 +1802,142 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
         res.status(500).json({ message: 'Error interno del servidor al generar reporte de ventas.' });
     }
 });
+
+// NUEVO: Endpoint para generar el reporte de ventas/rentabilidad en PDF
+app.post('/api/reports/sales/pdf', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
+    const { startDate, endDate, customerId } = req.body;
+    const { role, id: userId, username } = req.user;
+
+    if (!startDate || !endDate) {
+        return res.status(400).json({ message: 'Se requieren fechas de inicio y fin.' });
+    }
+
+    try {
+        // Reutilizamos la misma lógica de obtención de datos que el reporte en HTML
+        const whereClause = {
+            timestamp: { [Op.between]: [getOperationalDayRange(startDate).start, getOperationalDayRange(endDate).end] }
+        };
+        const expensesWhereClause = {
+            expense_date: { [Op.between]: [startDate, endDate] },
+            status: 'approved'
+        };
+
+        if (role === 'cashier') {
+            whereClause.user_id = userId;
+            expensesWhereClause.user_id = userId;
+        }
+        if (customerId) {
+            whereClause.customer_id = customerId;
+        }
+
+        const orders = await db.Order.findAll({
+            where: whereClause,
+            include: [
+                { model: db.Customer, as: 'customer', attributes: ['full_name'], required: false },
+                { model: db.User, as: 'user', attributes: ['username'], required: false },
+                { model: db.OrderItem, as: 'orderItems', attributes: ['quantity', 'price_at_time'], include: [{ model: db.Product, as: 'product', attributes: ['name'], required: false }], required: false }
+            ],
+            order: [['timestamp', 'DESC']]
+        });
+
+        const validOrders = orders.filter(o => o.status !== 'cancelled');
+        const totalRevenue = validOrders.reduce((sum, order) => sum + parseFloat(order.total), 0);
+
+        const expenses = await db.Expense.findAll({
+            where: expensesWhereClause,
+            include: [{ model: db.User, as: 'user', attributes: ['username'] }],
+            order: [['expense_date', 'DESC']]
+        });
+        const totalExpenses = expenses.reduce((sum, expense) => sum + parseFloat(expense.amount), 0);
+        const netProfit = totalRevenue - totalExpenses;
+
+        const reportData = { orders, totalRevenue, expenses, totalExpenses, netProfit, startDate, endDate };
+        
+        // Llamamos a la nueva función para generar el PDF
+        generateSalesReportPdf(res, reportData, req.user);
+
+    } catch (error) {
+        console.error("Error detallado en POST /api/reports/sales/pdf:", { message: error.message, stack: error.stack, requestBody: req.body });
+        res.status(500).json({ message: 'Error interno al generar el PDF del reporte de ventas.' });
+    }
+});
+
+function generateSalesReportPdf(res, data, user) {
+    const { orders, totalRevenue, expenses, totalExpenses, netProfit, startDate, endDate } = data;
+    const doc = new PDFDocument({ size: 'A4', margin: 40, layout: 'portrait' });
+
+    const formattedStartDate = new Date(startDate + 'T00:00:00').toLocaleDateString('es-PE');
+    const formattedEndDate = new Date(endDate + 'T00:00:00').toLocaleDateString('es-PE');
+    const filename = `Reporte-Rentabilidad-${formattedStartDate}-al-${formattedEndDate}.pdf`;
+
+    res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-type', 'application/pdf');
+    doc.pipe(res);
+
+    // --- Header ---
+    doc.fontSize(18).font('Helvetica-Bold').text('Reporte de Rentabilidad', { align: 'center' });
+    doc.fontSize(12).font('Helvetica').text(`Periodo: ${formattedStartDate} - ${formattedEndDate}`, { align: 'center' }).moveDown();
+
+    // --- Summary ---
+    doc.fontSize(14).font('Helvetica-Bold').text('Resumen Financiero').moveDown(0.5);
+    doc.fontSize(11).font('Helvetica').text(`(+) Ingresos Totales (Ventas):`).font('Helvetica-Bold').text(`S/. ${totalRevenue.toFixed(2)}`, { align: 'right' });
+    doc.font('Helvetica').text(`(-) Gastos Totales:`).font('Helvetica-Bold').text(`S/. ${totalExpenses.toFixed(2)}`, { align: 'right' });
+    doc.moveDown(0.5).strokeColor('#374151').lineWidth(0.5).moveTo(doc.x, doc.y).lineTo(555, doc.y).stroke().moveDown(0.5);
+    doc.fontSize(12).font('Helvetica-Bold').text(`(=) Utilidad Neta:`).text(`S/. ${netProfit.toFixed(2)}`, { align: 'right' }).moveDown(2);
+
+    // --- Orders Table ---
+    doc.fontSize(14).font('Helvetica-Bold').text('Detalle de Pedidos').moveDown(0.5);
+    const orderTableTop = doc.y;
+    doc.font('Helvetica-Bold').fontSize(9);
+    doc.text('Fecha', 40, orderTableTop).text('Cliente', 100, orderTableTop).text('Items', 250, orderTableTop).text('Total', 490, orderTableTop, { width: 60, align: 'right' });
+    doc.moveDown(0.5).strokeColor("#cccccc").lineWidth(0.5).moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+    doc.font('Helvetica').fontSize(8);
+
+    const PAGE_BOTTOM = doc.page.height - doc.page.margins.bottom;
+
+    orders.forEach(order => {
+        const itemsList = order.orderItems.map(item => `${item.quantity}x ${item.product?.name || 'N/A'}`).join(', ');
+
+        // Calcular la altura que ocupará la fila, especialmente la columna de items.
+        const itemsHeight = doc.heightOfString(itemsList, { width: 230 });
+        const rowHeight = Math.max(itemsHeight, 20); // Mínimo 20 para que no se vea muy apretado.
+
+        // Si la fila no cabe en la página actual, añadir una nueva.
+        if (doc.y + rowHeight > PAGE_BOTTOM) {
+            doc.addPage();
+        }
+
+        doc.moveDown(0.5);
+        const rowY = doc.y;
+        doc.text(new Date(order.timestamp).toLocaleDateString('es-PE'), 40, rowY, { width: 50 });
+        doc.text(order.customer?.full_name || 'N/A', 100, rowY, { width: 140 });
+        doc.text(itemsList, 250, rowY, { width: 230 });
+        doc.font(order.status === 'cancelled' ? 'Helvetica-Oblique' : 'Helvetica-Bold').text(order.status === 'cancelled' ? `ANULADO` : `S/. ${parseFloat(order.total).toFixed(2)}`, 490, rowY, { width: 60, align: 'right' }).font('Helvetica');
+        doc.y = rowY + rowHeight; // Mover el cursor 'y' a la posición correcta después de dibujar la fila.
+    });
+    doc.moveDown(2);
+
+    // --- Expenses Table ---
+    if (expenses.length > 0) {
+        doc.fontSize(14).font('Helvetica-Bold').text('Detalle de Gastos').moveDown(0.5);
+        const expenseTableTop = doc.y;
+        doc.font('Helvetica-Bold').fontSize(9);
+        doc.text('Fecha', 40, expenseTableTop).text('Descripción', 100, expenseTableTop).text('Monto', 490, expenseTableTop, { width: 60, align: 'right' });
+        doc.moveDown(0.5).strokeColor("#cccccc").lineWidth(0.5).moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+        doc.font('Helvetica').fontSize(8);
+        expenses.forEach(expense => {
+            doc.moveDown(0.5);
+            const rowY = doc.y;
+            doc.text(new Date(expense.expense_date + 'T00:00:00').toLocaleDateString('es-PE'), 40, rowY, { width: 50 }).text(expense.description, 100, rowY, { width: 380 });
+            doc.font('Helvetica-Bold').text(`S/. ${parseFloat(expense.amount).toFixed(2)}`, 490, rowY, { width: 60, align: 'right' }).font('Helvetica');
+        });
+    }
+
+    // --- Footer ---
+    doc.fontSize(8).fillColor('gray').text(`Reporte generado por: ${user.username}`, 40, doc.page.height - 50, { align: 'left' });
+
+    doc.end();
+}
 
 function generateCashierPdfReport(res, data, user) {
     const { totalSales, paymentReport, startAmount, totalExpenses, targetDateStr } = data;
@@ -1968,10 +2265,10 @@ app.get('/api/expenses', verifyToken, checkRole(['admin', 'cashier']), async (re
 app.post('/api/expenses', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     const { description, quantity, unit, amount, category, expense_date } = req.body;
     try {
-        // MODIFICACIÓN: Los gastos de cajeros y admins se aprueban automáticamente.
-        // El admin luego los revisa en el reporte general.
-        const status = 'approved';
-
+        // NUEVA LÓGICA: El estado depende del rol del usuario.
+        // Si es admin, se aprueba automáticamente. Si es cajero, queda pendiente.
+        const status = req.user.role === 'admin' ? 'approved' : 'pending_approval';
+ 
         await db.Expense.create({
             description,
             quantity,
@@ -1989,14 +2286,29 @@ app.post('/api/expenses', verifyToken, checkRole(['admin', 'cashier']), async (r
     }
 });
 
-app.put('/api/expenses/:id', verifyToken, checkRole(['admin']), async (req, res) => {
+app.put('/api/expenses/:id/status', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body; // 'approved' o 'rejected'
+
+    if (!['approved', 'rejected'].includes(status)) {
+        return res.status(400).json({ message: 'Estado no válido.' });
+    }
+
+    try {
+        const [affectedRows] = await db.Expense.update({ status }, { where: { id } });
+        if (affectedRows === 0) return res.status(404).json({ message: 'Gasto no encontrado.' });
+        res.json({ message: `Gasto ${status === 'approved' ? 'aprobado' : 'rechazado'} exitosamente.` });
+    } catch (error) {
+        console.error(`Error al actualizar estado del gasto ${id}:`, error);
+        res.status(500).send('Error interno del servidor');
+    }
+});
+
+app.put('/api/expenses/:id', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     const { id } = req.params;
     const { description, quantity, unit, amount, category, expense_date, status } = req.body;
     try {
-        const [affectedRows] = await db.Expense.update(
-            { description, quantity, unit, amount, category, expense_date, status },
-            { where: { id } }
-        );
+        const [affectedRows] = await db.Expense.update({ description, quantity, unit, amount, category, expense_date, status }, { where: { id } });
         if (affectedRows === 0) return res.status(404).json({ message: 'Gasto no encontrado.' });
         res.json({ message: 'Gasto actualizado exitosamente.' });
     } catch (error) {

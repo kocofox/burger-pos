@@ -74,9 +74,8 @@
                 </div>
                 <!-- Contenedor para botones de acción del Admin -->
                 <div id="admin-actions-container" class="hidden flex-shrink-0 flex gap-2 items-center h-10">
-                    <button id="approve-closure-btn" class="hidden bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Aprobar Cierre y Reporte</button>
-                    <button id="force-closure-btn" class="hidden bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Forzar Cierre y Reporte</button>
-                    <button id="regenerate-report-btn" class="hidden bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Regenerar Reporte</button>
+                    <button id="closure-btn" class="hidden bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Cerrar Día y Generar Reporte</button>
+                    <button id="regenerate-report-btn" class="hidden bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">Regenerar Reporte</button>
                     <button id="reopen-day-btn" class="hidden bg-yellow-500 hover:bg-yellow-600 text-gray-800 font-bold py-2 px-4 rounded-lg">Reabrir Día</button>
                     <!-- Status Texts -->
                     <div id="status-pending" class="hidden flex items-center text-sm font-semibold text-yellow-700"><span>Pendiente de Aprobación</span></div>
@@ -193,6 +192,24 @@
             <div class="mt-6 flex justify-center gap-4">
                 <button id="modal-cancel-btn" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancelar</button>
                 <button id="modal-confirm-btn" class="px-6 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- (NUEVO) Modal para Resumen y Cierre del Día (Admin) -->
+    <div id="admin-closure-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-60 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 text-left">
+            <h3 class="text-2xl font-bold text-gray-800 mb-4 text-center">Resumen del Día para Cierre</h3>
+            <div id="admin-closure-summary" class="space-y-4 text-gray-700 p-4 bg-gray-50 rounded-lg max-h-[70vh] overflow-y-auto">
+                <!-- El resumen del día se cargará aquí -->
+                <p class="text-center">Cargando resumen...</p>
+            </div>
+            <div id="admin-closure-net-profit" class="mt-4 p-4 bg-blue-50 rounded-lg text-center">
+                <!-- La utilidad neta se mostrará aquí -->
+            </div>
+            <div class="mt-8 flex justify-end gap-4">
+                <button id="cancel-admin-closure-btn" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancelar</button>
+                <button id="confirm-admin-closure-btn" class="px-6 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700">Confirmar Cierre y Generar PDF</button>
             </div>
         </div>
     </div>
@@ -612,21 +629,19 @@
         }
 
         async function updateDashboardActions(date) {
-            const approveBtn = document.getElementById('approve-closure-btn');
-            const forceBtn = document.getElementById('force-closure-btn');
+            const closureBtn = document.getElementById('closure-btn');
             const regenerateBtn = document.getElementById('regenerate-report-btn');
             const reopenBtn = document.getElementById('reopen-day-btn');
             const statusPending = document.getElementById('status-pending');
             const statusClosed = document.getElementById('status-closed');
 
             // Ocultar todos los botones y estados primero
-            [approveBtn, forceBtn, regenerateBtn, reopenBtn, statusPending, statusClosed].forEach(el => el && el.classList.add('hidden'));
+            [closureBtn, regenerateBtn, reopenBtn, statusPending, statusClosed].forEach(el => el && el.classList.add('hidden'));
             
             // Solo el admin ve estos botones
             if (userRole !== 'admin') return;
 
             const selectedDate = date || new Date().toLocaleDateString('en-CA');
-
             try {
                 const response = await fetch(`/api/reports/status?date=${selectedDate}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
@@ -634,13 +649,16 @@
                 if (!response.ok) throw new Error('No se pudo obtener el estado del cierre.');
                 
                 const { status } = await response.json();
-
                 // Lógica de visibilidad de botones para el Administrador
                 if (status === 'pending_closure') {
-                    approveBtn.classList.remove('hidden');
+                    closureBtn.classList.remove('hidden');
+                    closureBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
+                    closureBtn.classList.add('bg-green-600', 'hover:bg-green-700');
                     statusPending.classList.remove('hidden');
                 } else if (status === 'open') {
-                    forceBtn.classList.remove('hidden'); 
+                    closureBtn.classList.remove('hidden');
+                    closureBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                    closureBtn.classList.add('bg-red-600', 'hover:bg-red-700');
                 } else if (status === 'closed') {
                     regenerateBtn.classList.remove('hidden');
                     reopenBtn.classList.remove('hidden');
@@ -703,50 +721,12 @@
             }
         }
 
-        async function generateReport() {
-            const selectedDate = datePicker.value;
-
-            try {
-                const response = await fetch('/api/reports/approve-closure', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ date: selectedDate })
-                });
-
-                if (!response.ok) throw new Error('Error al generar el PDF.');
-
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = response.headers.get('Content-Disposition').split('filename=')[1].replace(/"/g, '');
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                
-                updateAllData(); // Refresh status to "closed"
-
-            } catch (error) {
-                console.error('Error en la descarga del reporte:', error);
-                showToast('No se pudo generar el reporte.', 'error');
-            }
-        }
-
         async function forceClosureReport() {
-            if (!confirm('¿Está seguro que desea FORZAR el cierre del día? Esta acción es para casos donde no hay propuesta del cajero.')) return;
             const selectedDate = datePicker.value;
-
             try {
                 const response = await fetch('/api/reports/force-closure', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify({ date: selectedDate })
                 });
 
@@ -761,10 +741,10 @@
                 document.body.appendChild(a);
                 a.click();
                 window.URL.revokeObjectURL(url);
-                showToast('Día cerrado y reporte generado exitosamente.');
+                showToast('Día cerrado y reporte generado.');
                 await updateAllData(); // Recargar todos los datos para reflejar el nuevo estado 'closed'
             } catch (error) {
-                showToast('No se pudo forzar el cierre.', 'error');
+                showToast('No se pudo completar el cierre.', 'error');
             }
         }
 
@@ -828,6 +808,81 @@
             }
 
             confirmBtn.onclick = handleConfirm; // Assign the action
+        }
+
+         // (NUEVO) Lógica para el modal de cierre del Admin
+        async function openAdminClosureModal() {
+            const modal = document.getElementById('admin-closure-modal');
+            const summaryContainer = document.getElementById('admin-closure-summary');
+            const netProfitContainer = document.getElementById('admin-closure-net-profit');
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            summaryContainer.innerHTML = '<p class="text-center">Cargando resumen...</p>';
+            netProfitContainer.innerHTML = '';
+
+            const selectedDate = datePicker.value;
+            const url = selectedDate ? `/api/admin/daily-summary?date=${selectedDate}` : '/api/admin/daily-summary';
+
+            try {
+                const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+                if (!response.ok) throw new Error('No se pudo cargar el resumen del día.');
+                
+                const data = await response.json();
+                const { totalSales, totalExpenses, salesByPaymentMethod, cashierSessions } = data;
+
+                const netProfit = totalSales - totalExpenses;
+
+                let salesBreakdownHtml = Object.entries(salesByPaymentMethod)
+                    .map(([method, amount]) => `<p class="flex justify-between text-sm pl-4"><span>- ${method}:</span> <span>S/. ${amount.toFixed(2)}</span></p>`)
+                    .join('');
+
+                let sessionsHtml = cashierSessions.map(session => {
+                    let statusHtml = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Abierto</span>`;
+                    if (session.status === 'pending_approval' || session.status === 'approved') {
+                        statusHtml = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Cerrado</span>`;
+                    }
+                    return `
+                        <div class="p-3 bg-white rounded-lg border">
+                            <div class="flex justify-between items-center">
+                                <strong class="text-gray-800">${session.user.username}</strong>
+                                ${statusHtml}
+                            </div>
+                            <div class="text-xs text-gray-600 mt-1">
+                                <p>Monto Contado: ${session.end_amount ? `S/. ${parseFloat(session.end_amount).toFixed(2)}` : 'N/A'}</p>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                if (cashierSessions.length === 0) {
+                    sessionsHtml = '<p class="text-sm text-center text-gray-500">No hay sesiones de caja para este día.</p>';
+                }
+
+                summaryContainer.innerHTML = `
+                    <div class="space-y-3">
+                        <div>
+                            <h4 class="font-bold text-lg">Resumen de Ventas</h4>
+                            <p class="flex justify-between"><span>Ingresos Totales:</span> <strong>S/. ${totalSales.toFixed(2)}</strong></p>
+                            <div class="text-gray-600">${salesBreakdownHtml || '<p class="text-sm pl-4">- Sin ventas.</p>'}</div>
+                        </div>
+                        <hr>
+                        <div>
+                            <h4 class="font-bold text-lg">Gastos del Día</h4>
+                            <p class="flex justify-between"><span>Gastos Aprobados:</span> <strong>S/. ${totalExpenses.toFixed(2)}</strong></p>
+                        </div>
+                        <hr>
+                        <div>
+                            <h4 class="font-bold text-lg">Estado de Cajas</h4>
+                            <div class="space-y-2">${sessionsHtml}</div>
+                        </div>
+                    </div>
+                `;
+                netProfitContainer.innerHTML = `<h4 class="font-bold text-xl">Utilidad Neta del Día: <span class="text-blue-700">S/. ${netProfit.toFixed(2)}</span></h4>`;
+
+            } catch (error) {
+                summaryContainer.innerHTML = `<p class="text-center text-red-500">${error.message}</p>`;
+            }
         }
 
         async function generateCashierPdfReport() {
@@ -1000,8 +1055,14 @@
             if (cashierPdfReportBtn) cashierPdfReportBtn.addEventListener('click', generateCashierPdfReport);
 
             // Listeners para los botones de acción del admin
-            document.getElementById('approve-closure-btn')?.addEventListener('click', generateReport);
-            document.getElementById('force-closure-btn')?.addEventListener('click', forceClosureReport);
+            document.getElementById('closure-btn')?.addEventListener('click', openAdminClosureModal);
+            document.getElementById('cancel-admin-closure-btn')?.addEventListener('click', () => {
+                document.getElementById('admin-closure-modal').classList.add('hidden');
+            });
+            document.getElementById('confirm-admin-closure-btn')?.addEventListener('click', () => {
+                forceClosureReport();
+                document.getElementById('admin-closure-modal').classList.add('hidden');
+            });
             document.getElementById('regenerate-report-btn')?.addEventListener('click', regenerateReport);
             document.getElementById('reopen-day-btn')?.addEventListener('click', reopenDay);
 
