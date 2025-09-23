@@ -11,7 +11,14 @@
 <body class="bg-gray-100">
     <div class="container mx-auto p-4 md:p-8">
         <header class="flex justify-between items-center mb-6">
-            <div>
+            <script>
+                const token = localStorage.getItem('cangre_burger_token');
+                if (!token) window.location.href = '/login.html';
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                // Solo admin y cajeros pueden ver esta página
+                if (payload.role !== 'admin' && payload.role !== 'cashier') window.location.href = '/dashboard';
+            </script>
+             <div>
                 <h1 class="text-3xl font-bold text-gray-800">Cuentas por Cobrar</h1>
                 <p class="text-gray-500">Gestiona las deudas pendientes de los clientes.</p>
             </div>
@@ -75,9 +82,6 @@
     </div>
 
     <script>
-        const token = localStorage.getItem('cangre_burger_token');
-        if (!token) window.location.href = '/login.html';
-
         const creditsTbody = document.getElementById('credits-tbody');
         const filterButton = document.getElementById('filter-button');
         const statusFilter = document.getElementById('status-filter');

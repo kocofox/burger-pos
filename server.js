@@ -2378,7 +2378,7 @@ app.delete('/api/expenses/:id', verifyToken, checkRole(['admin']), async (req, r
 
 // --- Admin Management: Customer Credits (Accounts Receivable) ---
 
-app.get('/api/credits/receivable', verifyToken, checkRole(['admin']), async (req, res) => {
+app.get('/api/credits/receivable', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     const { customerId, status } = req.query;
     try {
         const whereClause = {};
@@ -2400,7 +2400,7 @@ app.get('/api/credits/receivable', verifyToken, checkRole(['admin']), async (req
     }
 });
 
-app.post('/api/credits/:creditId/pay', verifyToken, checkRole(['admin']), async (req, res) => {
+app.post('/api/credits/:creditId/pay', verifyToken, checkRole(['admin', 'cashier']), async (req, res) => {
     const { creditId } = req.params;
     const { payment_method } = req.body;
     if (!payment_method) {
