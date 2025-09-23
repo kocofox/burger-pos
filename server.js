@@ -2389,7 +2389,17 @@ app.get('/api/credits/receivable', verifyToken, checkRole(['admin', 'cashier']),
             where: whereClause,
             include: [
                 { model: db.Customer, as: 'customer', attributes: ['full_name'] },
-                { model: db.Order, as: 'order', attributes: ['timestamp'] }
+                { 
+                    model: db.Order, 
+                    as: 'order', 
+                    attributes: ['timestamp'],
+                    include: [{
+                        model: db.OrderItem,
+                        as: 'orderItems',
+                        attributes: ['quantity', 'price_at_time'],
+                        include: [{ model: db.Product, as: 'product', attributes: ['name'] }]
+                    }]
+                }
             ],
             order: [['createdAt', 'DESC']]
         });
