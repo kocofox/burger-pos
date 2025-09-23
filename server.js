@@ -1778,7 +1778,12 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
                     as: 'orderItems',
                     attributes: ['quantity', 'price_at_time'],
                     include: [
-                        { model: db.Product, as: 'product', attributes: ['name'], required: false }],
+                        { model: db.Product, as: 'product', attributes: ['name'], required: false }
+                    ],
+                    required: false // Asegura que se devuelvan pedidos incluso si no tienen items.
+                },
+                {
+                    model: db.CustomerCredit, as: 'credit', attributes: ['status'],
                     required: false // Asegura que se devuelvan pedidos incluso si no tienen items.
                 }
             ],

@@ -280,8 +280,12 @@
                 let paymentMethodHtml = order.payment_method || 'N/A';
                 if (isCancelled) {
                     paymentMethodHtml = 'ANULADO';
-                } else if (order.payment_method === 'Por Cobrar') {
-                    paymentMethodHtml = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Por Cobrar</span>`;
+                } else if (order.payment_method === 'Por Cobrar' && order.credit) {
+                    if (order.credit.status === 'unpaid') {
+                        paymentMethodHtml = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Por Cobrar (Pendiente)</span>`;
+                    } else {
+                        paymentMethodHtml = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Por Cobrar (Pagado)</span>`;
+                    }
                 }
 
                 return `

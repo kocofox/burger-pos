@@ -8,6 +8,8 @@ module.exports = (sequelize, DataTypes) => {
       Order.belongsTo(models.User, { foreignKey: 'user_id', as: 'user' });
       Order.belongsTo(models.Customer, { foreignKey: 'customer_id', as: 'customer' });
       Order.hasMany(models.OrderItem, { foreignKey: 'order_id', as: 'orderItems' });
+      // --- AÑADIR ESTA LÍNEA ---
+      Order.hasOne(models.CustomerCredit, { foreignKey: 'order_id', as: 'credit' });
     }
   }
   Order.init({

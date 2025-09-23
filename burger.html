@@ -156,6 +156,23 @@
         </div>
     </div>
 
+    <!-- Modal para Inicio de Caja (Movido aquí desde index.html) -->
+    <div id="start-cash-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-60 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
+            <h3 class="text-2xl font-bold text-gray-800 mt-4">Iniciar Caja</h3>
+            <p class="text-gray-500 my-2">Ingresa el monto inicial de efectivo con el que comienzas tu turno.</p>
+            <form id="start-cash-form" class="mt-4">
+                <label for="start-amount" class="sr-only">Monto Inicial</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">S/.</div>
+                    <input type="number" id="start-amount" step="0.01" min="0" required
+                           class="w-full p-3 pl-10 text-center text-xl border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+                <button type="submit" class="mt-6 w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700">Confirmar e Iniciar Día</button>
+            </form>
+        </div>
+    </div>
+
     <script>
         // Objeto global para almacenar los datos del menú.
         let menuProducts = [];
@@ -165,6 +182,7 @@
 
         // Variable para almacenar el nombre del usuario logueado
         let currentUsername = '';
+        let userRole = ''; // NUEVO: para guardar el rol del usuario
 
         // Variable para el cliente seleccionado
         let selectedCustomer = null;
@@ -519,6 +537,44 @@
             }
         }
 
+        // --- Lógica para el modal de inicio de caja ---
+        async function checkCashierSession() {
+            // Esta función solo se ejecuta si el usuario es un cajero
+            if (userRole !== 'cashier') return;
+
+            try {
+                const response = await fetch('/api/cashier-session/status', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('No se pudo verificar el estado de la caja.');
+
+                const data = await response.json();
+                if (!data.hasStarted) {
+                    // Si la caja no ha sido iniciada, mostramos el modal
+                    document.getElementById('start-cash-modal').classList.remove('hidden');
+                    document.getElementById('start-cash-modal').classList.add('flex');
+                }
+            } catch (error) {
+                alert(error.message); // Alertar al usuario si hay un problema
+            }
+        }
+
+        document.getElementById('start-cash-form')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const startAmount = document.getElementById('start-amount').value;
+            const response = await fetch('/api/cashier-session/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ startAmount })
+            });
+
+            if (response.ok) {
+                document.getElementById('start-cash-modal').classList.add('hidden');
+            } else {
+                alert('Error al iniciar la caja. Inténtalo de nuevo.');
+            }
+        });
+
         // Event listener para cerrar el modal
         document.getElementById('close-modal-button').addEventListener('click', closeModal);
         document.getElementById('cancel-summary-button').addEventListener('click', closeModal);
@@ -611,7 +667,8 @@
             try {
                 // El token se obtiene de la variable global definida al inicio del script.
                 const payload = JSON.parse(atob(token.split('.')[1]));
-                return payload.username;
+                userRole = payload.role; // Guardamos el rol
+                return payload.username; // Devolvemos el nombre de usuario
             } catch (e) {
                 console.error('Error al decodificar el token:', e);
                 return null;
@@ -671,6 +728,7 @@
             }
 
             currentUsername = getUsernameFromToken();
+            await checkCashierSession(); // NUEVO: Verificar la sesión de caja aquí
             loadCartFromLocalStorage(); // Cargar el carrito guardado, si existe
             renderMenuItems(); // Esta función ahora se encarga de todo el renderizado inicial
             calculateTotal();
