@@ -37,26 +37,49 @@ app.get('/api/menu', async (req, res) => {
             ]
         });
 
-        const recipes = await db.ProductIngredient.findAll({
-            include: [{ model: db.Ingredient, as: 'ingredient' }]
+        // --- LÓGICA DE STOCK ACTUALIZADA ---
+        // 1. Obtener todos los componentes (insumos y preparaciones) de las recetas.
+        const components = await db.ProductComponent.findAll({
+            include: [
+                { model: db.Ingredient, as: 'ingredient', attributes: ['stock'] },
+                { model: db.Preparation, as: 'preparation' } // Traemos la preparación completa
+            ]
         });
 
-        // 3. Calcular el stock dinámico para productos compuestos
+        // 2. Obtener el stock actual de todas las preparaciones.
+        const preparationStocks = await db.Preparation.findAll({
+            attributes: [
+                'id',
+                [db.sequelize.fn('SUM', db.sequelize.col('lots.quantity_remaining')), 'total_stock']
+            ],
+            include: [{ model: db.PreparationLot, as: 'lots', attributes: [] }],
+            group: ['Preparation.id']
+        });
+
+        // 3. Calcular el stock dinámico para productos compuestos.
         const productsWithCalculatedStock = products.map(product => {
             const productJSON = product.toJSON();
             if (product.stock_type === 'COMPOUND') {
-                const productRecipe = recipes.filter(r => r.product_id === productJSON.id);
-                if (productRecipe.length === 0) {
+                const productComponents = components.filter(c => c.product_id === productJSON.id);
+                if (productComponents.length === 0) {
                     productJSON.stock = 0; // Si no tiene receta, no se puede preparar
                 } else {
-                    const possibleStock = productRecipe.map(ing => Math.floor(ing.ingredient.stock / ing.quantity_required));
-                    productJSON.stock = Math.min(...possibleStock);
+                    const possibleStocks = productComponents.map(component => {
+                        if (component.component_type === 'ingredient') {
+                            return Math.floor(component.ingredient.stock / component.quantity_required);
+                        } else { // 'preparation'
+                            const prepStock = preparationStocks.find(p => p.id === component.component_id);
+                            const availableStock = prepStock ? parseFloat(prepStock.get('total_stock')) : 0;
+                            return Math.floor(availableStock / component.quantity_required);
+                        }
+                    });
+                    productJSON.stock = Math.min(...possibleStocks);
                 }
             }
             return productJSON;
         });
 
-        // Aplanar la respuesta para que el frontend no tenga que lidiar con objetos anidados
+        // 4. Aplanar la respuesta para el frontend.
         const flatProducts = productsWithCalculatedStock.map(product => {
             product.is_customizable = product.category.is_customizable; // Preservar el campo is_customizable
             product.category = product.category.name; // Reemplazar el objeto categoría por su nombre
@@ -90,12 +113,12 @@ app.get('/api/ingredients', verifyToken, checkRole(['admin']), async (req, res) 
 });
 
 app.post('/api/ingredients', verifyToken, checkRole(['admin']), async (req, res) => {
-    const { name, stock } = req.body;
-    if (!name || stock === undefined) {
-        return res.status(400).json({ message: 'Nombre y stock son requeridos.' });
+    const { name, standard_unit, stock, cost, purchase_unit, purchase_to_standard_factor } = req.body;
+    if (!name || !standard_unit || stock === undefined || cost === undefined) {
+        return res.status(400).json({ message: 'Nombre, unidad, stock y costo son requeridos.' });
     }
     try {
-        await db.Ingredient.create({ name, stock });
+        await db.Ingredient.create({ name, standard_unit, stock, cost, purchase_unit, purchase_to_standard_factor });
         res.status(201).json({ message: 'Insumo creado exitosamente.' });
     } catch (error) {
         if (error.name === 'SequelizeUniqueConstraintError') {
@@ -112,12 +135,12 @@ app.post('/api/ingredients', verifyToken, checkRole(['admin']), async (req, res)
 
 app.put('/api/ingredients/:id', verifyToken, checkRole(['admin']), async (req, res) => {
     const { id } = req.params;
-    const { name, stock } = req.body;
-    if (!name || stock === undefined) {
-        return res.status(400).json({ message: 'Nombre y stock son requeridos.' });
+    const { name, standard_unit, stock, cost, purchase_unit, purchase_to_standard_factor } = req.body;
+    if (!name || !standard_unit || stock === undefined || cost === undefined) {
+        return res.status(400).json({ message: 'Nombre, unidad, stock y costo son requeridos.' });
     }
     try {
-        const [affectedRows] = await db.Ingredient.update({ name, stock }, { where: { id } });
+        const [affectedRows] = await db.Ingredient.update({ name, standard_unit, stock, cost, purchase_unit, purchase_to_standard_factor }, { where: { id } });
         if (affectedRows === 0) {
             return res.status(404).json({ message: 'Insumo no encontrado.' });
         }
@@ -156,73 +179,62 @@ app.delete('/api/ingredients/:id', verifyToken, checkRole(['admin']), async (req
     }
 });
 
-// --- Public Data ---
-// Obtener las cremas
-app.get('/api/sauces', async (req, res) => {
+// NUEVO: Endpoint para añadir stock por unidad de compra
+app.post('/api/ingredients/:id/add-stock', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { id } = req.params;
+    const { purchase_quantity } = req.body;
     try {
-        const sauces = await db.Sauce.findAll({ order: [['name', 'ASC']] });
-        res.json(sauces); // Devolvemos el objeto completo para la gestión
+        const ingredient = await db.Ingredient.findByPk(id);
+        if (!ingredient || !ingredient.purchase_to_standard_factor) {
+            return res.status(400).json({ message: 'Insumo no encontrado o sin factor de conversión de compra.' });
+        }
+
+        const stockToAdd = parseFloat(purchase_quantity) * parseFloat(ingredient.purchase_to_standard_factor);
+        
+        await ingredient.increment('stock', { by: stockToAdd });
+
+        res.status(200).json({ message: 'Stock añadido exitosamente.' });
     } catch (error) {
-        // Logging mejorado
-        console.error("Error detallado en GET /api/sauces:", {
-            message: error.message,
-            stack: error.stack,
-        });
-        res.status(500).json({ message: 'Error interno del servidor al obtener cremas.' });
+        console.error(`Error al añadir stock para el insumo ${id}:`, error);
+        res.status(500).json({ message: 'Error interno del servidor.' });
     }
 });
 
-app.post('/api/sauces', verifyToken, checkRole(['admin']), async (req, res) => {
-    const { name } = req.body;
-    if (!name) {
-        return res.status(400).json({ message: 'El nombre es requerido.' });
-    }
+
+// --- NUEVO: Endpoints para Conversiones de Unidades ---
+app.get('/api/ingredients/:ingredientId/conversions', verifyToken, checkRole(['admin']), async (req, res) => {
     try {
-        await db.Sauce.create({ name });
-        res.status(201).json({ message: 'Crema creada exitosamente.' });
+        const conversions = await db.UnitConversion.findAll({ where: { ingredient_id: req.params.ingredientId } });
+        res.json(conversions);
+    } catch (error) {
+        res.status(500).json({ message: 'Error al obtener conversiones.' });
+    }
+});
+
+app.post('/api/ingredients/:ingredientId/conversions', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { ingredientId } = req.params;
+    const { recipe_unit_name, conversion_factor } = req.body;
+    try {
+        const newConversion = await db.UnitConversion.create({
+            ingredient_id: ingredientId,
+            recipe_unit_name,
+            conversion_factor
+        });
+        res.status(201).json(newConversion);
     } catch (error) {
         if (error.name === 'SequelizeUniqueConstraintError') {
-            return res.status(409).json({ message: 'Ya existe una crema con ese nombre.' });
+            return res.status(409).json({ message: 'Ya existe una conversión con ese nombre para este insumo.' });
         }
-        // Logging mejorado
-        console.error("Error detallado en POST /api/sauces:", {
-            message: error.message,
-            stack: error.stack,
-        });
-        res.status(500).json({ message: 'Error interno del servidor al crear crema.' });
+        res.status(500).json({ message: 'Error al crear conversión.' });
     }
 });
 
-app.put('/api/sauces/:id', verifyToken, checkRole(['admin']), async (req, res) => {
-    const { id } = req.params;
-    const { name } = req.body;
+app.delete('/api/ingredients/conversions/:id', verifyToken, checkRole(['admin']), async (req, res) => {
     try {
-        const [affectedRows] = await db.Sauce.update({ name }, { where: { id } });
-        if (affectedRows === 0) return res.status(404).json({ message: 'Crema no encontrada.' });
-        res.status(200).json({ message: 'Crema actualizada.' });
+        await db.UnitConversion.destroy({ where: { id: req.params.id } });
+        res.status(204).send();
     } catch (error) {
-        // Logging mejorado
-        console.error(`Error detallado en PUT /api/sauces/${id}:`, {
-            message: error.message,
-            stack: error.stack,
-        });
-        res.status(500).json({ message: 'Error interno del servidor al actualizar crema.' });
-    }
-});
-
-app.delete('/api/sauces/:id', verifyToken, checkRole(['admin']), async (req, res) => {
-    const { id } = req.params;
-    try {
-        const affectedRows = await db.Sauce.destroy({ where: { id } });
-        if (affectedRows === 0) return res.status(404).json({ message: 'Crema no encontrada.' });
-        res.status(200).json({ message: 'Crema eliminada.' });
-    } catch (error) {
-        // Logging mejorado
-        console.error(`Error detallado en DELETE /api/sauces/${id}:`, {
-            message: error.message,
-            stack: error.stack,
-        });
-        res.status(500).json({ message: 'Error interno del servidor al eliminar crema.' });
+        res.status(500).json({ message: 'Error al eliminar conversión.' });
     }
 });
 
@@ -253,6 +265,37 @@ app.get('/api/categories/ordered', async (req, res) => {
             stack: error.stack,
         });
         res.status(500).json({ message: 'Error interno del servidor al obtener categorías.' });
+    }
+});
+
+// --- NUEVO: Endpoint unificado para obtener aderezos (preparaciones tipo 'dressing') ---
+app.get('/api/dressings', async (req, res) => {
+    try {
+        // MODIFICACIÓN: Calcular y añadir el stock total de cada aderezo.
+        const dressings = await db.Preparation.findAll({
+            attributes: {
+                include: [
+                    [
+                        // Subconsulta para sumar la cantidad restante de todos los lotes de esta preparación.
+                        db.sequelize.literal(`(
+                            SELECT SUM(quantity_remaining)
+                            FROM preparation_lots
+                            WHERE preparation_lots.preparation_id = Preparation.id
+                        )`),
+                        'stock'
+                    ]
+                ]
+            },
+            where: { usage_type: 'dressing' },
+            order: [['name', 'ASC']]
+        });
+        res.json(dressings);
+    } catch (error) {
+        console.error("Error detallado en GET /api/dressings:", {
+            message: error.message,
+            stack: error.stack,
+        });
+        res.status(500).json({ message: 'Error interno del servidor al obtener aderezos.' });
     }
 });
 
@@ -334,12 +377,27 @@ app.post('/api/orders', verifyToken, checkRole(['admin', 'cashier']), async (req
             return res.status(400).json({ message: 'El carrito está vacío.' });
         }
         const productsInCart = await db.Product.findAll({ where: { id: productIds }, transaction: t, lock: true });
-        const recipes = await db.ProductIngredient.findAll({ where: { product_id: productIds }, transaction: t });
+        
+        // --- NUEVA LÓGICA DE STOCK CON PREPARACIONES ---
+        const components = await db.ProductComponent.findAll({ where: { product_id: productIds }, transaction: t });
 
-        const ingredientIds = [...new Set(recipes.map(r => r.ingredient_id))];
+        // Obtener todos los IDs de insumos y preparaciones necesarios
+        const ingredientIds = components.filter(c => c.component_type === 'ingredient').map(c => c.component_id);
+        const preparationIds = components.filter(c => c.component_type === 'preparation').map(c => c.component_id);
+
+        // Bloquear las filas de insumos y lotes para evitar condiciones de carrera
         let ingredientsInCart = [];
-        if (ingredientIds.length > 0) {
+        if (ingredientIds.length > 0) { // Corregido: usar [...new Set(ingredientIds)]
             ingredientsInCart = await db.Ingredient.findAll({ where: { id: ingredientIds }, transaction: t, lock: true });
+        }
+        let preparationLots = [];
+        if (preparationIds.length > 0) {
+            preparationLots = await db.PreparationLot.findAll({
+                where: { preparation_id: [...new Set(preparationIds)], quantity_remaining: { [Op.gt]: 0 } },
+                order: [['expiry_date', 'ASC']], // FIFO: Usar los lotes que vencen antes
+                transaction: t,
+                lock: true
+            });
         }
 
         // 2. Verificar stock y preparar actualizaciones
@@ -347,29 +405,44 @@ app.post('/api/orders', verifyToken, checkRole(['admin', 'cashier']), async (req
         for (const item of items) {
             const product = productsInCart.find(p => p.id === item.productId);
             if (!product) throw new Error(`Producto con ID ${item.productId} no encontrado.`);
-
+            
             if (product.stock_type === 'SIMPLE') {
                 if (product.stock < item.quantity) {
                     await t.rollback();
                     return res.status(400).json({ message: `Stock insuficiente para ${product.name}. Solo quedan ${product.stock}.` });
                 }
                 stockUpdates.push(product.decrement('stock', { by: item.quantity, transaction: t }));
-            } else { // COMPOUND
-                const productRecipe = recipes.filter(r => r.product_id === product.id);
-                if (productRecipe.length === 0) {
+            } else { // COMPOUND - Lógica actualizada
+                const productComponents = components.filter(c => c.product_id === product.id);
+                if (productComponents.length === 0) {
                     await t.rollback();
                     return res.status(400).json({ message: `El producto ${product.name} no tiene una receta definida y no se puede vender.` });
                 }
-                for (const recipeItem of productRecipe) {
-                    const ingredient = ingredientsInCart.find(i => i.id === recipeItem.ingredient_id);
-                    const requiredQuantity = recipeItem.quantity_required * item.quantity;
-                    if (!ingredient || ingredient.stock < requiredQuantity) {
-                        await t.rollback();
-                        const ingredientName = ingredient ? ingredient.name : `Ingrediente ID ${recipeItem.ingredient_id}`;
-                        const availableStock = ingredient ? ingredient.stock : 0;
-                        return res.status(400).json({ message: `Stock insuficiente del insumo '${ingredientName}' para preparar ${item.quantity}x ${product.name}. Se necesitan ${requiredQuantity}, solo hay ${availableStock}.` });
+                for (const component of productComponents) {
+                    let requiredTotal = component.quantity_required * item.quantity;
+
+                    if (component.component_type === 'ingredient') {
+                        const ingredient = ingredientsInCart.find(i => i.id === component.component_id);
+                        if (!ingredient || ingredient.stock < requiredTotal) {
+                            await t.rollback();
+                            return res.status(400).json({ message: `Stock insuficiente del insumo '${ingredient?.name || 'Desconocido'}' para ${product.name}.` });
+                        }
+                        stockUpdates.push(ingredient.decrement('stock', { by: requiredTotal, transaction: t }));
+                    } else { // 'preparation'
+                        const lotsForPreparation = preparationLots.filter(l => l.preparation_id === component.component_id);
+                        const totalStockPreparation = lotsForPreparation.reduce((sum, lot) => sum + parseFloat(lot.quantity_remaining), 0);
+                        if (totalStockPreparation < requiredTotal) {
+                            await t.rollback();
+                            return res.status(400).json({ message: `Stock insuficiente de la preparación para ${product.name}.` });
+                        }
+                        // Lógica FIFO para descontar de los lotes
+                        for (const lot of lotsForPreparation) {
+                            if (requiredTotal <= 0) break;
+                            const toDecrement = Math.min(requiredTotal, parseFloat(lot.quantity_remaining));
+                            stockUpdates.push(lot.decrement('quantity_remaining', { by: toDecrement, transaction: t }));
+                            requiredTotal -= toDecrement;
+                        }
                     }
-                    stockUpdates.push(ingredient.decrement('stock', { by: requiredQuantity, transaction: t }));
                 }
             }
         }
@@ -1805,7 +1878,23 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
         // NUEVO: Calcular la utilidad neta.
         const netProfit = totalRevenue - totalExpenses;
 
-        res.json({ orders, totalOrders: orders.length, totalRevenue, expenses, totalExpenses, netProfit });
+        // NUEVO: Calcular ingresos por método de pago para el rango de fechas.
+        const paymentMethodWhereClause = { ...whereClause };
+        paymentMethodWhereClause.status = { [Op.not]: 'cancelled' }; // Excluir anulados
+        paymentMethodWhereClause.payment_method = { [Op.ne]: null }; // Solo los que tienen método de pago
+
+        const revenueByPaymentMethod = await db.Order.findAll({
+            attributes: [
+                'payment_method',
+                [db.sequelize.fn('SUM', db.sequelize.col('total')), 'total_revenue']
+            ],
+            where: paymentMethodWhereClause,
+            group: ['payment_method'],
+            order: [[db.sequelize.fn('SUM', db.sequelize.col('total')), 'DESC']]
+        });
+
+
+        res.json({ orders, totalOrders: orders.length, totalRevenue, expenses, totalExpenses, netProfit, revenueByPaymentMethod });
     } catch (error) {
         // Logging mejorado
         console.error("Error detallado en GET /api/reports/sales:", {
@@ -1814,7 +1903,7 @@ app.get('/api/reports/sales', verifyToken, checkRole(['admin', 'cashier']), asyn
             stack: error.stack,
             query: req.query
         });
-        res.status(500).json({ message: 'Error interno del servidor al generar reporte de ventas.' });
+        res.status(500).json({ message: 'Error interno del servidor al generar reporte de ventas.' }); 
     } 
 });
 
@@ -1864,6 +1953,8 @@ app.post('/api/reports/sales/pdf', verifyToken, checkRole(['admin', 'cashier']),
             order: [['expense_date', 'DESC']]
         });
         const totalExpenses = expenses.reduce((sum, expense) => sum + parseFloat(expense.amount), 0);
+
+        // REVERSIÓN: Volvemos al cálculo simple de utilidad neta.
         const netProfit = totalRevenue - totalExpenses;
 
         const reportData = { orders, totalRevenue, expenses, totalExpenses, netProfit, startDate, endDate };
@@ -1897,11 +1988,13 @@ function generateSalesReportPdf(res, data, user) {
     doc.fontSize(12).font('Helvetica').text(`Periodo: ${formattedStartDate} - ${formattedEndDate}`, { align: 'center' }).moveDown();
 
     // --- Summary ---
+    // REVERSIÓN: Volvemos al resumen financiero simple.
     doc.fontSize(14).font('Helvetica-Bold').text('Resumen Financiero').moveDown(0.5);
     doc.fontSize(11).font('Helvetica').text(`(+) Ingresos Totales (Ventas):`).font('Helvetica-Bold').text(`S/. ${totalRevenue.toFixed(2)}`, { align: 'right' });
     doc.font('Helvetica').text(`(-) Gastos Totales:`).font('Helvetica-Bold').text(`S/. ${totalExpenses.toFixed(2)}`, { align: 'right' });
     doc.moveDown(0.5).strokeColor('#374151').lineWidth(0.5).moveTo(doc.x, doc.y).lineTo(555, doc.y).stroke().moveDown(0.5);
     doc.fontSize(12).font('Helvetica-Bold').text(`(=) Utilidad Neta:`).text(`S/. ${netProfit.toFixed(2)}`, { align: 'right' }).moveDown(2);
+
 
     // --- Orders Table ---
     doc.fontSize(14).font('Helvetica-Bold').text('Detalle de Pedidos').moveDown(0.5);
@@ -2138,9 +2231,8 @@ app.get('/api/products/compound', verifyToken, checkRole(['admin']), async (req,
 app.get('/api/recipes/:productId', verifyToken, checkRole(['admin']), async (req, res) => {
     const { productId } = req.params;
     try {
-        const recipe = await db.ProductIngredient.findAll({
+        const recipe = await db.ProductComponent.findAll({
             where: { product_id: productId },
-            include: [{ model: db.Ingredient, as: 'ingredient', attributes: ['id', 'name'] }]
         });
         res.json(recipe);
     } catch (error) {
@@ -2151,13 +2243,14 @@ app.get('/api/recipes/:productId', verifyToken, checkRole(['admin']), async (req
 
 app.put('/api/recipes/:productId', verifyToken, checkRole(['admin']), async (req, res) => {
     const { productId } = req.params;
-    const { ingredients } = req.body; // ingredients es un array de { ingredient_id, quantity_required }
+    // MODIFICACIÓN: Ahora se llama 'ingredients' pero contiene 'components'
+    const { ingredients: components } = req.body; 
     const t = await db.sequelize.transaction();
     try {
-        await db.ProductIngredient.destroy({ where: { product_id: productId }, transaction: t });
-        if (ingredients && ingredients.length > 0) {
-            const recipeData = ingredients.map(ing => ({ ...ing, product_id: productId }));
-            await db.ProductIngredient.bulkCreate(recipeData, { transaction: t });
+        await db.ProductComponent.destroy({ where: { product_id: productId }, transaction: t });
+        if (components && components.length > 0) {
+            const recipeData = components.map(comp => ({ ...comp, product_id: productId }));
+            await db.ProductComponent.bulkCreate(recipeData, { transaction: t });
         }
         await t.commit();
         res.json({ message: 'Receta actualizada exitosamente.' });
@@ -2508,6 +2601,184 @@ app.delete('/api/users/:id', verifyToken, checkRole(['admin']), async (req, res)
     }
 });
 
+// --- NUEVO: Endpoints para Gestión de Producción (Preparaciones) ---
+
+app.get('/api/preparations', verifyToken, checkRole(['admin']), async (req, res) => {
+    try {
+        const { include } = req.query;
+        const options = { order: [['name', 'ASC']] };
+
+        if (include === 'recipe') {
+            options.include = [{
+                // CORRECCIÓN: Usar el modelo correcto 'PreparationComponent' que ahora define la receta.
+                model: db.PreparationComponent, as: 'recipe', attributes: ['component_id', 'component_type']
+            }];
+        }
+        const preparations = await db.Preparation.findAll(options);
+        res.json(preparations.map(p => p.toJSON()));
+    } catch (error) {
+        console.error("Error al obtener preparaciones:", error);
+        res.status(500).json({ message: 'Error interno del servidor.' });
+    }
+});
+
+app.post('/api/preparations', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { name, usage_type, unit_of_measure, estimated_expiry_days, recipe_yield } = req.body;
+    try {
+        const preparation = await db.Preparation.create({ name, usage_type, unit_of_measure, estimated_expiry_days, recipe_yield });
+        res.status(201).json(preparation);
+    } catch (error) {
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            return res.status(409).json({ message: 'Ya existe una preparación con ese nombre.' });
+        }
+        console.error("Error al crear preparación:", error);
+        res.status(500).json({ message: 'Error interno del servidor.' });
+    }
+});
+
+app.put('/api/preparations/:id', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { id } = req.params;
+    const { name, usage_type, unit_of_measure, estimated_expiry_days, recipe_yield } = req.body;
+    try {
+        const [affectedRows] = await db.Preparation.update({ name, usage_type, unit_of_measure, estimated_expiry_days, recipe_yield }, { where: { id } });
+        if (affectedRows === 0) return res.status(404).json({ message: 'Preparación no encontrada.' });
+        res.json({ message: 'Preparación actualizada.' });
+    } catch (error) {
+        console.error("Error al actualizar preparación:", error);
+        res.status(500).json({ message: 'Error interno del servidor.' });
+    }
+});
+
+app.delete('/api/preparations/:id', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const affectedRows = await db.Preparation.destroy({ where: { id } });
+        if (affectedRows === 0) return res.status(404).json({ message: 'Preparación no encontrada.' });
+        res.json({ message: 'Preparación eliminada.' });
+    } catch (error) {
+        if (error.name === 'SequelizeForeignKeyConstraintError') {
+            return res.status(400).json({ message: 'No se puede eliminar, está en uso en recetas de productos.' });
+        }
+        console.error("Error al eliminar preparación:", error);
+        res.status(500).json({ message: 'Error interno del servidor.' });
+    }
+});
+
+app.get('/api/preparations/:id/recipe', verifyToken, checkRole(['admin']), async (req, res) => {
+    try {
+        // MODIFICACIÓN: Ahora buscamos en PreparationComponent e incluimos ambos modelos.
+        const recipe = await db.PreparationComponent.findAll({
+            where: { preparation_id: req.params.id },
+            include: [
+                { model: db.Ingredient, as: 'ingredient', attributes: ['id', 'name'] },
+                { model: db.Preparation, as: 'preparation', attributes: ['id', 'name', 'unit_of_measure'] }
+            ]
+        });
+        res.json(recipe);
+    } catch (error) {
+        console.error("Error al obtener receta de preparación:", error);
+        res.status(500).json({ message: 'Error interno del servidor.' });
+    }
+});
+
+app.put('/api/preparations/:id/recipe', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { id } = req.params;
+    const { ingredients: components, recipe_yield } = req.body;
+    const t = await db.sequelize.transaction();
+    try {
+        // Actualizar el rendimiento en la tabla de preparaciones
+        await db.Preparation.update({ recipe_yield }, { where: { id }, transaction: t });
+
+        // Actualizar los componentes de la receta
+        await db.PreparationComponent.destroy({ where: { preparation_id: id }, transaction: t });
+        if (components && components.length > 0) {
+            const recipeData = components.map(comp => ({ ...comp, preparation_id: id }));
+            await db.PreparationComponent.bulkCreate(recipeData, { transaction: t });
+        }
+        await t.commit();
+        res.json({ message: 'Receta de preparación actualizada.' });
+    } catch (error) {
+        await t.rollback();
+        console.error("Error al actualizar receta de preparación:", error);
+        res.status(500).json({ message: 'Error interno del servidor.' });
+    }
+});
+
+app.post('/api/preparations/:id/produce', verifyToken, checkRole(['admin']), async (req, res) => {
+    const { id: preparationId } = req.params;
+    // MODIFICACIÓN: El body ahora contiene 'consumed_components'
+    const { quantity_produced, consumed_components } = req.body;
+    const t = await db.sequelize.transaction();
+    try {
+        const preparation = await db.Preparation.findByPk(preparationId, { transaction: t });
+        if (!preparation) return res.status(404).json({ message: 'Preparación no encontrada.' });
+
+        // --- LÓGICA DE PRODUCCIÓN MULTINIVEL ---
+        const ingredientIds = consumed_components.filter(c => c.component_type === 'ingredient').map(c => c.component_id);
+        const subPreparationIds = consumed_components.filter(c => c.component_type === 'preparation').map(c => c.component_id);
+
+        const ingredients = await db.Ingredient.findAll({ where: { id: ingredientIds }, transaction: t, lock: true });
+        const subPreparationLots = await db.PreparationLot.findAll({
+            where: { preparation_id: subPreparationIds, quantity_remaining: { [Op.gt]: 0 } },
+            order: [['expiry_date', 'ASC']],
+            transaction: t,
+            lock: true
+        });
+
+        let totalCost = 0;
+        const stockUpdates = [];
+
+        for (const consumed of consumed_components) {
+            if (consumed.component_type === 'ingredient') {
+                const ingredient = ingredients.find(i => i.id === consumed.component_id);
+                if (!ingredient || ingredient.stock < consumed.quantity_consumed) {
+                    await t.rollback();
+                    return res.status(400).json({ message: `Stock insuficiente para el insumo '${ingredient?.name || 'Desconocido'}'` });
+                }
+                totalCost += parseFloat(ingredient.cost) * consumed.quantity_consumed;
+                stockUpdates.push(ingredient.decrement('stock', { by: consumed.quantity_consumed, transaction: t }));
+            } else { // 'preparation'
+                const lotsForSubPrep = subPreparationLots.filter(l => l.preparation_id === consumed.component_id);
+                const totalStockSubPrep = lotsForSubPrep.reduce((sum, lot) => sum + parseFloat(lot.quantity_remaining), 0);
+                if (totalStockSubPrep < consumed.quantity_consumed) {
+                    await t.rollback();
+                    return res.status(400).json({ message: `Stock insuficiente de la preparación base.` });
+                }
+                let required = consumed.quantity_consumed;
+                for (const lot of lotsForSubPrep) {
+                    if (required <= 0) break;
+                    const toDecrement = Math.min(required, parseFloat(lot.quantity_remaining));
+                    totalCost += parseFloat(lot.cost_per_unit) * toDecrement;
+                    stockUpdates.push(lot.decrement('quantity_remaining', { by: toDecrement, transaction: t }));
+                    required -= toDecrement;
+                }
+            }
+        }
+
+        await Promise.all(stockUpdates);
+        const costPerUnit = totalCost / quantity_produced;
+        const productionDate = new Date();
+        const expiryDate = new Date();
+        expiryDate.setDate(productionDate.getDate() + preparation.estimated_expiry_days);
+
+        await db.PreparationLot.create({
+            preparation_id: preparationId,
+            quantity_produced,
+            quantity_remaining: quantity_produced,
+            cost_per_unit: costPerUnit,
+            production_date: productionDate,
+            expiry_date: expiryDate
+        }, { transaction: t });
+
+        await t.commit();
+        res.status(201).json({ message: 'Lote producido exitosamente.' });
+    } catch (error) {
+        await t.rollback();
+        console.error("Error al producir lote:", error);
+        res.status(500).json({ message: 'Error interno del servidor.' });
+    }
+});
+
 // =================================================================
 // --- PAGE SERVING ROUTES ---
 // =================================================================
@@ -2548,8 +2819,8 @@ app.get('/manage-recipes.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'manage-recipes.html'));
 });
 
-app.get('/manage-sauces.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'manage-sauces.html'));
+app.get('/manage-preparations.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'manage-preparations.html'));
 });
 
 app.get('/profile.html', (req, res) => {
@@ -2673,3 +2944,5 @@ db.sequelize.authenticate()
     .catch(err => {
         console.error('No se pudo conectar a la base de datos:', err);
     });
+
+    

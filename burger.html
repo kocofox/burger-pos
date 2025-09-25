@@ -199,7 +199,7 @@
                 // Cargar todos los datos necesarios en paralelo para mayor eficiencia
                 const [menuResponse, saucesResponse, categoryOrderResponse, paymentMethodsResponse] = await Promise.all([
                     fetch('/api/menu'),
-                    fetch('/api/sauces'),
+                    fetch('/api/dressings'), // MODIFICACIÓN: Usar el nuevo endpoint de aderezos
                     fetch('/api/categories/ordered'),
                     fetch('/api/payment-methods')
                 ]);
@@ -768,11 +768,12 @@
             }
 
             const cartItem = cart.find(i => i.cartItemId === cartItemId);
-            const saucesResponse = await fetch('/api/sauces');
-            const allSauces = await saucesResponse.json();
+            // MODIFICACIÓN: Usar el nuevo endpoint de aderezos que incluye el stock
+            const dressingsResponse = await fetch('/api/dressings');
+            const allDressings = await dressingsResponse.json();
 
             selectorDiv.classList.remove('hidden');
-            const areAllSelected = allSauces.length > 0 && allSauces.every(sauce => cartItem.sauces.includes(sauce));
+            const areAllSelected = allDressings.length > 0 && allDressings.every(dressing => cartItem.sauces.includes(dressing.name));
 
             selectorDiv.innerHTML = `
                 <div class="space-y-2">
@@ -783,12 +784,17 @@
                         </label>
                     </div>
                     <div class="grid grid-cols-2 gap-2 border-t pt-2">
-                        ${allSauces.map(sauce => `
-                            <label class="flex items-center text-sm">
-                                <input type="checkbox" value="${sauce.name}" class="form-checkbox h-4 w-4 rounded individual-sauce-${cartItemId}" onchange="updateItemSauces(${cartItemId}, this)" ${cartItem.sauces.includes(sauce.name) ? 'checked' : ''}>
-                                <span class="ml-2">${sauce.name}</span>
+                        ${allDressings.map(dressing => {
+                            const stock = parseFloat(dressing.stock) || 0;
+                            const isOutOfStock = stock <= 0;
+                            const isDisabled = isOutOfStock && !cartItem.sauces.includes(dressing.name); // Deshabilitar si no hay stock y no estaba ya seleccionado
+                            return `
+                            <label class="flex items-center text-sm ${isDisabled ? 'cursor-not-allowed text-gray-400' : ''}">
+                                <input type="checkbox" value="${dressing.name}" class="form-checkbox h-4 w-4 rounded individual-sauce-${cartItemId}" onchange="updateItemSauces(${cartItemId}, this)" ${cartItem.sauces.includes(dressing.name) ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}>
+                                <span class="ml-2">${dressing.name}</span>
+                                ${isOutOfStock ? '<span class="ml-auto text-xs text-red-500 font-semibold">Agotado</span>' : ''}
                             </label>
-                        `).join('')}
+                        `}).join('')}
                     </div>
                     <div class="text-right mt-2">
                         <button onclick="applySauces(${cartItemId})" class="text-sm bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-3 rounded-lg">Aplicar</button>

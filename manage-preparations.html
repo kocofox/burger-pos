@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestionar Producción - Cangre Burger</title>
+    <link href="/dist/output.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .toast { animation: slideInUp 0.5s ease-out, fadeOut 0.5s ease-in 2.5s forwards; }
+        @keyframes slideInUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2"></div>
+
+    <div class="max-w-7xl mx-auto">
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-4xl font-bold text-gray-800">Gestión de Producción</h1>
+                <p class="text-gray-500">Define, produce y gestiona tus preparaciones internas (salsas, carnes, etc.).</p>
+            </div>
+            <a href="/dashboard" class="text-blue-600 hover:underline">&larr; Volver al Dashboard</a>
+        </header>
+
+        <main class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <!-- Columna de la tabla -->
+            <div class="md:col-span-2 bg-white p-6 rounded-2xl shadow-lg">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Lista de Preparaciones</h2>
+                <!-- Pestañas de Filtro -->
+                <div class="mb-4 border-b border-gray-200">
+                    <nav class="-mb-px flex space-x-4" aria-label="Tabs">
+                        <button data-filter="all" class="tab-btn whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600">Todas</button>
+                        <button data-filter="dressing" class="tab-btn whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">Aderezos</button>
+                        <button data-filter="ingredient" class="tab-btn whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">Ingredientes Internos</button>
+                    </nav>
+                </div>
+
+                <div class="max-h-[60vh] overflow-y-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Preparación</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unidad</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vence en (días)</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="preparations-table-body" class="bg-white divide-y divide-gray-200"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Columna del formulario -->
+            <div class="bg-white p-6 rounded-2xl shadow-lg">
+                <h2 id="form-title" class="text-2xl font-semibold text-gray-700 mb-4">Añadir Preparación</h2>
+                <form id="preparation-form" class="space-y-4">
+                    <input type="hidden" id="preparation-id">
+                    <div>
+                        <label for="preparation-name" class="block text-sm font-medium text-gray-700">Nombre</label>
+                        <input type="text" id="preparation-name" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div>
+                        <label for="preparation-usage-type" class="block text-sm font-medium text-gray-700">Tipo de Uso</label>
+                        <select id="preparation-usage-type" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md bg-white">
+                            <option value="ingredient">Ingrediente Interno (ej. Carne sazonada)</option>
+                            <option value="dressing">Aderezo Seleccionable (ej. Cremas)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="preparation-unit" class="block text-sm font-medium text-gray-700">Unidad de Medida</label>
+                        <input type="text" id="preparation-unit" placeholder="Ej: Litros, Kilos, Unidades" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div>
+                        <label for="preparation-expiry" class="block text-sm font-medium text-gray-700">Días de Vencimiento</label>
+                        <input type="number" id="preparation-expiry" min="1" value="3" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div class="flex space-x-2">
+                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Guardar</button>
+                        <button type="button" id="cancel-edit-btn" class="hidden w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal para Gestionar Receta -->
+    <div id="recipe-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-60 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6">
+            <h3 class="text-2xl font-bold text-gray-800 mb-4">Gestionar Receta para <span id="recipe-modal-title" class="text-blue-600"></span></h3>
+            <!-- NUEVO: Campo para el rendimiento de la receta -->
+            <div class="mb-4">
+                <label for="recipe-yield" class="block text-sm font-medium text-gray-700">
+                    Esta receta produce (<span id="recipe-yield-unit"></span>):
+                </label>
+                <input type="number" id="recipe-yield" step="0.01" min="0.01" value="1" class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+            </div>
+
+            <input type="hidden" id="recipe-preparation-id">
+            <div id="recipe-ingredients-list" class="space-y-2 mb-4 max-h-60 overflow-y-auto"></div>
+            <div class="flex items-end gap-4 p-4 bg-gray-50 rounded-lg">
+                <div class="flex-grow">
+                    <label for="ingredient-select" class="block text-sm font-medium text-gray-700">Añadir Insumo</label>
+                    <select id="ingredient-select" class="mt-1 block w-full p-2 border border-gray-300 rounded-md"></select>
+                </div>
+                <div>
+                    <label for="ingredient-quantity" class="block text-sm font-medium text-gray-700">Cantidad</label>
+                    <input type="number" id="ingredient-quantity" step="0.01" min="0.01" class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <button id="add-ingredient-btn" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">Añadir</button>
+            </div>
+            <div class="mt-8 flex justify-end gap-4">
+                <button onclick="closeModal('recipe-modal')" class="px-6 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Cancelar</button>
+                <button id="save-recipe-btn" class="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Guardar Receta</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Producir Lote -->
+    <div id="produce-lot-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-60 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6">
+            <h3 class="text-2xl font-bold text-gray-800 mb-4">Producir Lote de <span id="produce-modal-title" class="text-blue-600"></span></h3>
+            <input type="hidden" id="produce-preparation-id">
+            <div class="mb-4">
+                <label for="quantity-produced" class="block text-sm font-medium text-gray-700">Cantidad a Producir (<span id="produce-unit-label"></span>)</label>
+                <input type="number" id="quantity-produced" step="0.1" min="0.1" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
+            </div>
+            <h4 class="font-semibold text-gray-700 mb-2">Insumos Requeridos (Ajustable)</h4>
+            <div id="lot-ingredients-list" class="space-y-2 p-4 bg-gray-50 rounded-lg max-h-60 overflow-y-auto"></div>
+            <div class="mt-8 flex justify-end gap-4">
+                <button onclick="closeModal('produce-lot-modal')" class="px-6 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Cancelar</button>
+                <button id="confirm-production-btn" class="px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700">Confirmar Producción</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api/preparations';
+        const token = localStorage.getItem('cangre_burger_token');
+        if (!token) window.location.href = '/login.html';
+
+        let allPreparations = [];
+        let allIngredients = [];
+        let currentRecipe = [];
+
+
+        // --- Carga Inicial ---
+        async function loadInitialData() {
+            try {
+                const [preparationsRes, ingredientsRes] = await Promise.all([
+                    fetch(`${API_URL}?include=recipe`, { headers: { 'Authorization': `Bearer ${token}` } }), // Preparations
+                    fetch('/api/ingredients', { headers: { 'Authorization': `Bearer ${token}` } })
+                ]);
+                allPreparations = await preparationsRes.json();
+                allIngredients = await ingredientsRes.json();
+                
+                // CORRECCIÓN: Usar la variable correcta y llamar a la función de filtrado inicial.
+                filterAndRenderTable();
+            } catch (error) {
+                showToast('Error al cargar datos iniciales.', 'error');
+            }
+        }
+
+        function filterAndRenderTable() {
+            const activeFilter = document.querySelector('.tab-btn.border-blue-500').dataset.filter;
+            const filteredPreparations = activeFilter === 'all' 
+                ? allPreparations 
+                : allPreparations.filter(p => p.usage_type === activeFilter);
+            renderPreparationsTable(filteredPreparations);
+        }
+
+        function renderPreparationsTable(preparations) {
+            const tableBody = document.getElementById('preparations-table-body');
+            if (preparations.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-gray-500">No hay preparaciones para este filtro.</td></tr>`;
+                return;
+            }
+
+            tableBody.innerHTML = preparations.map(p => {
+                const hasRecipe = p.recipe && p.recipe.length > 0;
+                const recipeButtonClass = hasRecipe ? 'text-blue-600 hover:text-blue-900' : 'text-yellow-600 hover:text-yellow-800 font-bold';
+                const recipeButtonText = hasRecipe ? 'Receta' : '¡Falta Receta!';
+
+                return `
+                <tr>
+                    <td class="px-4 py-3 text-sm text-gray-900 font-medium">${p.name}</td>
+                    <td class="px-4 py-3 text-sm text-gray-500">${p.unit_of_measure}</td>
+                    <td class="px-4 py-3 text-sm text-gray-500">${p.estimated_expiry_days}</td>
+                    <td class="px-4 py-3 text-sm font-medium space-x-2 whitespace-nowrap">
+                        <button onclick='openProduceLotModal(${JSON.stringify(p)})' class="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full hover:bg-green-200" ${!hasRecipe ? 'disabled title="Añade una receta primero"' : ''}>Producir Lote</button>
+                        <button onclick='openRecipeModal(${JSON.stringify(p)})' class="${recipeButtonClass}">${recipeButtonText}</button>
+                        <button onclick='editPreparation(${JSON.stringify(p)})' class="text-indigo-600 hover:text-indigo-900">Editar</button>
+                        <button onclick="deletePreparation(${p.id})" class="text-red-600 hover:text-red-900">Eliminar</button>
+                    </td>
+                </tr>
+            `}).join('');
+        }
+
+        // --- Gestión de Preparaciones (CRUD) ---
+        document.getElementById('preparation-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('preparation-id').value;
+            const data = {
+                name: document.getElementById('preparation-name').value,
+                usage_type: document.getElementById('preparation-usage-type').value,
+                unit_of_measure: document.getElementById('preparation-unit').value,
+                estimated_expiry_days: document.getElementById('preparation-expiry').value
+            };
+
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `${API_URL}/${id}` : API_URL;
+
+            const response = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                showToast(`Preparación ${id ? 'actualizada' : 'creada'}.`);
+                resetForm();
+                loadInitialData();
+            } else {
+                const error = await response.json();
+                showToast(`Error: ${error.message}`, 'error');
+            }
+        });
+
+        function editPreparation(p) {
+            document.getElementById('form-title').innerText = 'Editar Preparación';
+            document.getElementById('preparation-id').value = p.id;
+            document.getElementById('preparation-name').value = p.name;
+            document.getElementById('preparation-usage-type').value = p.usage_type;
+            document.getElementById('preparation-unit').value = p.unit_of_measure;
+            document.getElementById('preparation-expiry').value = p.estimated_expiry_days;
+            document.getElementById('cancel-edit-btn').classList.remove('hidden');
+        }
+
+        function resetForm() {
+            document.getElementById('form-title').innerText = 'Añadir Preparación';
+            document.getElementById('preparation-form').reset();
+            document.getElementById('preparation-id').value = '';
+            document.getElementById('cancel-edit-btn').classList.add('hidden');
+        }
+
+        async function deletePreparation(id) {
+            if (!confirm('¿Seguro que quieres eliminar esta preparación?')) return;
+            const response = await fetch(`${API_URL}/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+            if (response.ok) {
+                showToast('Preparación eliminada.');
+                loadInitialData();
+            } else {
+                const error = await response.json();
+                showToast(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // --- Gestión de Recetas ---
+        async function openRecipeModal(preparation) {
+            document.getElementById('recipe-modal-title').innerText = preparation.name;
+            document.getElementById('recipe-preparation-id').value = preparation.id;
+            // NUEVO: Actualizar la unidad de medida en el campo de rendimiento
+            document.getElementById('recipe-yield-unit').innerText = preparation.unit_of_measure;
+            document.getElementById('recipe-yield').value = preparation.recipe_yield || 1;
+            
+            const response = await fetch(`${API_URL}/${preparation.id}/recipe`, { headers: { 'Authorization': `Bearer ${token}` } });
+            currentRecipe = await response.json();
+
+            // NUEVO: Poblar el selector con Insumos y Preparaciones
+            populateComponentSelect(preparation.id);
+
+            renderRecipeList();
+            openModal('recipe-modal');
+        }
+
+        function renderRecipeList() {
+            const list = document.getElementById('recipe-ingredients-list');
+            if (currentRecipe.length === 0) {
+                list.innerHTML = '<p class="text-center text-gray-500">Esta preparación aún no tiene una receta.</p>';
+                return;
+            }
+            list.innerHTML = currentRecipe.map(item => {
+                const componentName = item.component_type === 'ingredient' ? item.ingredient.name : item.preparation.name;
+                const componentTypeLabel = item.component_type === 'ingredient' ? 'Insumo' : 'Preparación';
+                return `
+                    <div class="flex justify-between items-center p-2 bg-gray-100 rounded">
+                        <span>${componentName} <span class="text-xs text-gray-500">(${componentTypeLabel})</span></span>
+                        <span>${item.quantity_required}</span>
+                        <button onclick="removeComponentFromRecipe('${item.component_type}', ${item.component_id})" class="text-red-500 hover:text-red-700">&times;</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // NUEVO: Poblar el selector con ambos tipos de componentes
+        function populateComponentSelect(currentPreparationId) {
+            const select = document.getElementById('ingredient-select');
+            const ingredientsOptGroup = allIngredients.map(i => `<option value="ingredient-${i.id}">${i.name} (Insumo)</option>`).join('');
+            // Excluir la preparación actual de la lista de preparaciones seleccionables para evitar bucles infinitos
+            const preparationsOptGroup = allPreparations
+                .filter(p => p.id !== currentPreparationId)
+                .map(p => `<option value="preparation-${p.id}">${p.name} (Preparación)</option>`).join('');
+
+            select.innerHTML = `<optgroup label="Preparaciones">${preparationsOptGroup}</optgroup><optgroup label="Insumos">${ingredientsOptGroup}</optgroup>`;
+        }
+
+        document.getElementById('add-ingredient-btn').addEventListener('click', () => { // El ID del botón se mantiene por simplicidad
+            const selectedValue = document.getElementById('ingredient-select').value;
+            const quantity = parseFloat(document.getElementById('ingredient-quantity').value);
+            if (!selectedValue || !quantity || quantity <= 0) {
+                showToast('Selecciona un componente y una cantidad válida.', 'error');
+                return;
+            }
+
+            const [type, idStr] = selectedValue.split('-');
+            const id = parseInt(idStr);
+
+            if (currentRecipe.some(item => item.component_id === id && item.component_type === type)) {
+                showToast('Este componente ya está en la receta.', 'error');
+                return;
+            }
+
+            const component = type === 'ingredient' ? allIngredients.find(i => i.id === id) : allPreparations.find(p => p.id === id);
+            currentRecipe.push({ component_id: id, component_type: type, quantity_required: quantity, [type]: { name: component.name } });
+            renderRecipeList();
+        });
+
+        function removeComponentFromRecipe(type, id) {
+            currentRecipe = currentRecipe.filter(item => !(item.component_id === id && item.component_type === type));
+            renderRecipeList();
+        }
+
+        document.getElementById('save-recipe-btn').addEventListener('click', async () => {
+            const preparationId = document.getElementById('recipe-preparation-id').value;
+            const recipeYield = parseFloat(document.getElementById('recipe-yield').value);
+            const recipeData = currentRecipe.map(item => ({ component_id: item.component_id, component_type: item.component_type, quantity_required: item.quantity_required }));
+            
+            const response = await fetch(`${API_URL}/${preparationId}/recipe`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ ingredients: recipeData, recipe_yield: recipeYield })
+            });
+
+            if (response.ok) {
+                showToast('Receta guardada exitosamente.');
+                closeModal('recipe-modal');
+            } else {
+                const error = await response.json();
+                showToast(`Error: ${error.message}`, 'error');
+            }
+        });
+
+        // --- Producción de Lotes ---
+        async function openProduceLotModal(preparation) {
+            document.getElementById('produce-modal-title').innerText = preparation.name;
+            document.getElementById('produce-preparation-id').value = preparation.id;
+            document.getElementById('produce-unit-label').innerText = preparation.unit_of_measure;
+            document.getElementById('quantity-produced').value = '1';
+
+            const response = await fetch(`${API_URL}/${preparation.id}/recipe`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const recipe = await response.json();
+            if (recipe.length === 0) {
+                showToast('Esta preparación no tiene receta. No se puede producir.', 'error');
+                return;
+            }
+            document.getElementById('quantity-produced').dataset.recipe = JSON.stringify(recipe);
+            updateLotIngredientsList();
+            openModal('produce-lot-modal');
+        }
+
+        document.getElementById('quantity-produced').addEventListener('input', updateLotIngredientsList);
+
+        function updateLotIngredientsList() {
+            const quantity = parseFloat(document.getElementById('quantity-produced').value) || 0;
+            const recipe = JSON.parse(document.getElementById('quantity-produced').dataset.recipe || '[]');
+            const list = document.getElementById('lot-ingredients-list');
+
+            list.innerHTML = recipe.map(item => {
+                // --- LÓGICA DE PROPORCIONALIDAD ---
+                const baseYield = parseFloat(document.getElementById('quantity-produced').dataset.recipeYield) || 1;
+                const totalRequired = (item.quantity_required / baseYield * quantity).toFixed(3);
+
+                const componentType = item.component_type;
+                const componentId = item.component_id;
+                const component = componentType === 'ingredient' ? item.ingredient : item.preparation;
+                const stock = componentType === 'ingredient' ? allIngredients.find(i => i.id === componentId)?.stock : 'N/A'; // Stock de preparaciones es más complejo
+
+                return `
+                    <div class="grid grid-cols-3 items-center gap-2">
+                        <span class="text-sm">${component.name} <span class="text-xs text-gray-500">(${componentType})</span></span>
+                        <input type="number" value="${totalRequired}" step="0.01" class="lot-component-quantity p-1 border rounded-md text-sm" data-component-id="${componentId}" data-component-type="${componentType}">
+                        <span class="text-xs text-gray-500">Stock: ${stock}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        document.getElementById('confirm-production-btn').addEventListener('click', async () => {
+            const preparationId = document.getElementById('produce-preparation-id').value;
+            const quantityProduced = parseFloat(document.getElementById('quantity-produced').value);
+            if (!quantityProduced || quantityProduced <= 0) {
+                showToast('La cantidad producida debe ser mayor a cero.', 'error');
+                return;
+            }
+
+            const consumedComponents = Array.from(document.querySelectorAll('.lot-component-quantity')).map(input => ({
+                component_id: parseInt(input.dataset.componentId),
+                component_type: input.dataset.componentType,
+                quantity_consumed: parseFloat(input.value)
+            }));
+
+            const response = await fetch(`${API_URL}/${preparationId}/produce`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ quantity_produced: quantityProduced, consumed_components: consumedComponents })
+            });
+
+            if (response.ok) {
+                showToast('Lote producido y stock actualizado.');
+                closeModal('produce-lot-modal');
+                // Recargar solo los ingredientes para reflejar el nuevo stock
+                const ingredientsRes = await fetch('/api/ingredients', { headers: { 'Authorization': `Bearer ${token}` } });
+                allIngredients = await ingredientsRes.json();
+            } else {
+                const error = await response.json();
+                showToast(`Error: ${error.message}`, 'error');
+            }
+        });
+
+        // --- Funciones de Utilidad (Modales, Toasts) ---
+        function openModal(modalId) { document.getElementById(modalId).classList.remove('hidden'); document.getElementById(modalId).classList.add('flex'); }
+        function closeModal(modalId) { document.getElementById(modalId).classList.add('hidden'); document.getElementById(modalId).classList.remove('flex'); }
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgColor = type === 'error' ? 'bg-red-600' : 'bg-gray-800';
+            toast.className = `toast ${bgColor} text-white text-sm font-semibold py-2 px-4 rounded-lg shadow-lg`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        document.getElementById('cancel-edit-btn').addEventListener('click', resetForm);
+
+        document.querySelectorAll('.tab-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                document.querySelectorAll('.tab-btn').forEach(btn => {
+                    btn.classList.remove('border-blue-500', 'text-blue-600');
+                    btn.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+                });
+                e.currentTarget.classList.add('border-blue-500', 'text-blue-600');
+                e.currentTarget.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+                filterAndRenderTable();
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', loadInitialData);
+    </script>
+</body>
+</html>

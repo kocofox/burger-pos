@@ -6,6 +6,8 @@
     <title>Dashboard - Cangre Burger</title>
     <link href="/dist/output.css" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <!-- NUEVO: Añadir Chart.js desde un CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { 
             font-family: 'Inter', sans-serif; 
@@ -168,6 +170,10 @@
                     <div id="tab-content-reports" class="hidden space-y-8">
                         <div id="payment-report-section-tab">
                             <h3 class="text-xl font-semibold text-gray-700 mb-2">Reporte por Método de Pago</h3>
+                            <!-- NUEVO: Contenedor para el gráfico de pastel -->
+                            <div class="mb-6 max-w-sm mx-auto">
+                                <canvas id="payment-chart"></canvas>
+                            </div>
                             <div id="payment-report-list-tab" class="space-y-2"></div>
                         </div>
                         <hr>
@@ -247,6 +253,9 @@
             window.location.href = '/login.html';
         }
         let userRole = '';
+
+        // NUEVO: Variable para mantener la instancia del gráfico
+        let paymentChartInstance = null;
 
         // Button and status elements
         // (Los elementos del modal se obtienen dentro de sus funciones)
@@ -355,8 +364,14 @@
                 reportContainer.innerHTML = '';
 
                 if (reportData.length === 0) {
+                    // CORRECCIÓN: Destruir el gráfico si no hay datos.
+                    if (paymentChartInstance) {
+                        paymentChartInstance.destroy();
+                        paymentChartInstance = null;
+                    }
+                    document.getElementById('payment-chart').getContext('2d').clearRect(0, 0, document.getElementById('payment-chart').width, document.getElementById('payment-chart').height); // Limpiar el canvas
                     reportContainer.innerHTML = '<p class="text-gray-500">No hay transacciones registradas para esta fecha.</p>';
-                    return;
+                    return; // Salir después de limpiar.
                 }
 
                 const headerHtml = `
@@ -385,6 +400,44 @@
                         </div>
                     </div>`
                 ).join('');
+
+                // --- NUEVO: Lógica para renderizar el gráfico de pastel ---
+                const chartCanvas = document.getElementById('payment-chart');
+                const labels = reportData.map(item => item.payment_method);
+                const data = reportData.map(item => parseFloat(item.total_revenue));
+
+                // Colores base para el gráfico
+                const backgroundColors = [
+                    '#10B981', // green-500
+                    '#3B82F6', // blue-500
+                    '#F59E0B', // amber-500
+                    '#8B5CF6', // violet-500
+                    '#EC4899', // pink-500
+                    '#6366F1', // indigo-500
+                ];
+
+                // Destruir el gráfico anterior si existe para evitar solapamientos al cambiar de fecha
+                if (paymentChartInstance) {
+                    paymentChartInstance.destroy();
+                }
+
+                paymentChartInstance = new Chart(chartCanvas, {
+                    type: 'pie',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Ingresos por Método de Pago',
+                            data: data,
+                            backgroundColor: backgroundColors,
+                            borderColor: '#ffffff',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { position: 'top' } }
+                    }
+                });
 
                 reportContainer.innerHTML = headerHtml + rowsHtml;
             } catch (error) {
@@ -517,8 +570,8 @@
                     const adminLinks = [
                         { href: '/manage-products.html', text: 'Gestionar Productos' },
                         { href: '/manage-recipes.html', text: 'Gestionar Recetas' },
+                        { href: '/manage-preparations.html', text: 'Gestionar Producción' },
                         { href: '/manage-ingredients.html', text: 'Gestionar Insumos' },
-                        { href: '/manage-sauces.html', text: 'Gestionar Cremas' },
                         { href: '/manage-users.html', text: 'Gestionar Usuarios' },
                         { href: '/manage-expenses.html', text: 'Gestionar Gastos' },
                         { href: '/sales-report.html', text: 'Reporte de Ventas' },
