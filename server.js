@@ -6,6 +6,7 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const PDFDocument = require('pdfkit');
+const units = require('./config/units'); // NUEVO: Importar las unidades
 const db = require('./models');
 const { Op } = require('sequelize');
 
@@ -97,6 +98,12 @@ app.get('/api/menu', async (req, res) => {
     }
 });
 
+// NUEVO: Endpoint para obtener la lista de unidades de medida
+app.get('/api/units', (req, res) => {
+    // Devolvemos el objeto para que el frontend tenga tanto la clave como el valor
+    res.json(units);
+});
+
 // --- Admin Management: Ingredients (CRUD) ---
 app.get('/api/ingredients', verifyToken, checkRole(['admin']), async (req, res) => {
     try {
@@ -113,12 +120,12 @@ app.get('/api/ingredients', verifyToken, checkRole(['admin']), async (req, res) 
 });
 
 app.post('/api/ingredients', verifyToken, checkRole(['admin']), async (req, res) => {
-    const { name, standard_unit, stock, cost, purchase_unit, purchase_to_standard_factor } = req.body;
-    if (!name || !standard_unit || stock === undefined || cost === undefined) {
-        return res.status(400).json({ message: 'Nombre, unidad, stock y costo son requeridos.' });
+    const { name, purchase_unit_name, cost_per_purchase_unit } = req.body;
+    if (!name || !purchase_unit_name || cost_per_purchase_unit === undefined) {
+        return res.status(400).json({ message: 'Nombre, unidad de compra y costo son requeridos.' });
     }
     try {
-        await db.Ingredient.create({ name, standard_unit, stock, cost, purchase_unit, purchase_to_standard_factor });
+        await db.Ingredient.create({ name, purchase_unit_name, cost_per_purchase_unit, stock: 0 });
         res.status(201).json({ message: 'Insumo creado exitosamente.' });
     } catch (error) {
         if (error.name === 'SequelizeUniqueConstraintError') {
@@ -135,12 +142,40 @@ app.post('/api/ingredients', verifyToken, checkRole(['admin']), async (req, res)
 
 app.put('/api/ingredients/:id', verifyToken, checkRole(['admin']), async (req, res) => {
     const { id } = req.params;
-    const { name, standard_unit, stock, cost, purchase_unit, purchase_to_standard_factor } = req.body;
-    if (!name || !standard_unit || stock === undefined || cost === undefined) {
-        return res.status(400).json({ message: 'Nombre, unidad, stock y costo son requeridos.' });
-    }
+    // MODIFICACIÓN: Aceptar actualizaciones parciales
+    // CORRECCIÓN: Aceptar 'cost' como alias de 'cost_per_purchase_unit' para compatibilidad.
+    const { name, stock, cost, cost_per_purchase_unit, standard_unit, purchase_unit_name, purchase_to_standard_factor } = req.body;
+    
     try {
-        const [affectedRows] = await db.Ingredient.update({ name, standard_unit, stock, cost, purchase_unit, purchase_to_standard_factor }, { where: { id } });
+        // CORRECCIÓN: Buscar primero el insumo para asegurar que existe y tener sus datos.
+        const ingredient = await db.Ingredient.findByPk(id);
+        if (!ingredient) {
+            return res.status(404).json({ message: 'Insumo no encontrado.' });
+        }
+
+        // Construir el objeto de actualización solo con los campos proporcionados
+        const updateData = { ...req.body };
+        // Limpiar campos que no deben ser vacíos
+        if (updateData.purchase_unit_name === '') updateData.purchase_unit_name = null;
+        if (updateData.purchase_to_standard_factor === '') updateData.purchase_to_standard_factor = null;
+
+        // Lógica de cálculo de costo más robusta y segura
+        // Usamos los datos que vienen en la petición, o si no vienen, los que ya están en la BD.
+        const finalFactor = updateData.purchase_to_standard_factor ?? ingredient.purchase_to_standard_factor;
+        const finalPurchaseCost = updateData.cost_per_purchase_unit ?? ingredient.cost_per_purchase_unit;
+
+        // Solo calcular si tenemos ambos valores.
+        if (finalFactor != null && finalPurchaseCost != null) {
+            const factor = parseFloat(finalFactor);
+            if (factor > 0) {
+                updateData.cost_per_standard_unit = parseFloat(finalPurchaseCost) / factor;
+            } else {
+                updateData.cost_per_standard_unit = null; // Evitar división por cero
+            }
+        }
+
+        const [affectedRows] = await db.Ingredient.update(updateData, { where: { id } });
+        
         if (affectedRows === 0) {
             return res.status(404).json({ message: 'Insumo no encontrado.' });
         }
@@ -180,21 +215,44 @@ app.delete('/api/ingredients/:id', verifyToken, checkRole(['admin']), async (req
 });
 
 // NUEVO: Endpoint para añadir stock por unidad de compra
-app.post('/api/ingredients/:id/add-stock', verifyToken, checkRole(['admin']), async (req, res) => {
+app.post('/api/ingredients/:id/add-stock', verifyToken, checkRole(['admin']), async (req, res) => { // La ruta se mantiene igual
     const { id } = req.params;
-    const { purchase_quantity } = req.body;
+    // MODIFICACIÓN: Aceptar todos los datos en una sola petición
+    const { purchase_quantity, standard_unit, purchase_to_standard_factor, cost_per_purchase_unit } = req.body;
+    const t = await db.sequelize.transaction();
+
     try {
-        const ingredient = await db.Ingredient.findByPk(id);
-        if (!ingredient || !ingredient.purchase_to_standard_factor) {
-            return res.status(400).json({ message: 'Insumo no encontrado o sin factor de conversión de compra.' });
+        const ingredient = await db.Ingredient.findByPk(id, { transaction: t, lock: true });
+        if (!ingredient) {
+            await t.rollback();
+            return res.status(404).json({ message: 'Insumo no encontrado.' });
         }
 
-        const stockToAdd = parseFloat(purchase_quantity) * parseFloat(ingredient.purchase_to_standard_factor);
-        
-        await ingredient.increment('stock', { by: stockToAdd });
+        // 1. Actualizar la configuración del insumo
+        const updateData = {
+            standard_unit,
+            purchase_to_standard_factor
+        };
 
-        res.status(200).json({ message: 'Stock añadido exitosamente.' });
+        // Calcular y actualizar el costo por unidad estándar
+        if (purchase_to_standard_factor > 0 && cost_per_purchase_unit != null) {
+            updateData.cost_per_standard_unit = parseFloat(cost_per_purchase_unit) / parseFloat(purchase_to_standard_factor);
+        }
+
+        await ingredient.update(updateData, { transaction: t });
+
+        // 2. Añadir el stock
+        if (!purchase_to_standard_factor || purchase_to_standard_factor <= 0) {
+            await t.rollback();
+            return res.status(400).json({ message: 'El factor de conversión debe ser un número mayor a cero.' });
+        }
+        const stockToAdd = parseFloat(purchase_quantity) * parseFloat(purchase_to_standard_factor);
+        await ingredient.increment('stock', { by: stockToAdd, transaction: t });
+
+        await t.commit();
+        res.status(200).json({ message: 'Configuración guardada y stock añadido exitosamente.' });
     } catch (error) {
+        await t.rollback();
         console.error(`Error al añadir stock para el insumo ${id}:`, error);
         res.status(500).json({ message: 'Error interno del servidor.' });
     }
@@ -2220,7 +2278,11 @@ app.delete('/api/products/:id', verifyToken, checkRole(['admin', 'cashier']), as
 // --- Admin Management: Recipes ---
 app.get('/api/products/compound', verifyToken, checkRole(['admin']), async (req, res) => {
     try {
-        const products = await db.Product.findAll({ where: { stock_type: 'COMPOUND' }, order: [['name', 'ASC']] });
+        // CORRECCIÓN: Incluir los componentes de la receta para que el frontend sepa si existe una.
+        const products = await db.Product.findAll({ 
+            where: { stock_type: 'COMPOUND' }, 
+            include: [{ model: db.ProductComponent, as: 'components' }], // 'components' es el alias definido en el modelo Product
+            order: [['name', 'ASC']] });
         res.json(products);
     } catch (error) {
         console.error("Error al leer productos compuestos:", error);
@@ -2233,6 +2295,11 @@ app.get('/api/recipes/:productId', verifyToken, checkRole(['admin']), async (req
     try {
         const recipe = await db.ProductComponent.findAll({
             where: { product_id: productId },
+            // CORRECCIÓN: Incluir los modelos de Ingredient y Preparation para obtener sus nombres.
+            include: [
+                { model: db.Ingredient, as: 'ingredient', attributes: ['id', 'name'] },
+                { model: db.Preparation, as: 'preparation', attributes: ['id', 'name'] }
+            ]
         });
         res.json(recipe);
     } catch (error) {
@@ -2249,7 +2316,10 @@ app.put('/api/recipes/:productId', verifyToken, checkRole(['admin']), async (req
     try {
         await db.ProductComponent.destroy({ where: { product_id: productId }, transaction: t });
         if (components && components.length > 0) {
-            const recipeData = components.map(comp => ({ ...comp, product_id: productId }));
+            // CORRECCIÓN: Asegurarse de que el mapeo solo incluya los campos necesarios para la tabla ProductComponent.
+            const recipeData = components.map(comp => ({ 
+                product_id: productId, component_id: comp.component_id, component_type: comp.component_type, quantity_required: comp.quantity_required 
+            }));
             await db.ProductComponent.bulkCreate(recipeData, { transaction: t });
         }
         await t.commit();
@@ -2666,7 +2736,7 @@ app.delete('/api/preparations/:id', verifyToken, checkRole(['admin']), async (re
 
 app.get('/api/preparations/:id/recipe', verifyToken, checkRole(['admin']), async (req, res) => {
     try {
-        // MODIFICACIÓN: Ahora buscamos en PreparationComponent e incluimos ambos modelos.
+        // CORRECCIÓN: La consulta original olvidó incluir el modelo 'Ingredient'.
         const recipe = await db.PreparationComponent.findAll({
             where: { preparation_id: req.params.id },
             include: [

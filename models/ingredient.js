@@ -26,7 +26,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 'gr'
     },
-    purchase_unit: {
+    purchase_unit_name: {
       type: DataTypes.STRING(20),
       allowNull: true
     },
@@ -35,9 +35,18 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     stock: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.DECIMAL(10, 3),
       allowNull: false,
       defaultValue: 0
+    },
+    cost_per_purchase_unit: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0.00
+    },
+    cost_per_standard_unit: {
+      type: DataTypes.DECIMAL(12, 6),
+      allowNull: true
     }
   }, {
     sequelize,

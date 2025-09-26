@@ -28,14 +28,26 @@
         <main class="grid grid-cols-1 md:grid-cols-3 gap-8">
             <!-- Columna de la tabla -->
             <div class="md:col-span-2 bg-white p-6 rounded-2xl shadow-lg">
-                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Lista de Preparaciones</h2>
+                <!-- Título y botón de acción contextual -->
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold text-gray-700">Lista de Producción</h2>
+                    <a href="/manage-products.html" id="add-new-product-btn" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-sm">
+                        + Crear Nuevo Producto
+                    </a>
+                </div>
                 <!-- Pestañas de Filtro -->
-                <div class="mb-4 border-b border-gray-200">
+                <div class="mb-4 border-b border-gray-200 flex justify-between items-center">
                     <nav class="-mb-px flex space-x-4" aria-label="Tabs">
-                        <button data-filter="all" class="tab-btn whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600">Todas</button>
-                        <button data-filter="dressing" class="tab-btn whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">Aderezos</button>
-                        <button data-filter="ingredient" class="tab-btn whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">Ingredientes Internos</button>
+                        <!-- NUEVO: Pestañas principales para Preparaciones y Productos -->
+                        <button data-view="preparations" class="main-tab-btn whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600">Preparaciones</button>
+                        <button data-view="products" class="main-tab-btn whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">Productos Finales</button>
                     </nav>
+                     <!-- Filtros secundarios para preparaciones -->
+                    <div id="preparations-filter-container" class="flex space-x-2">
+                        <button data-filter="all" class="filter-btn bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">Todas</button>
+                        <button data-filter="dressing" class="filter-btn bg-gray-200 text-gray-600 px-3 py-1 rounded-full text-xs font-semibold">Aderezos</button>
+                        <button data-filter="ingredient" class="filter-btn bg-gray-200 text-gray-600 px-3 py-1 rounded-full text-xs font-semibold">Ingredientes Internos</button>
+                    </div>
                 </div>
 
                 <div class="max-h-[60vh] overflow-y-auto">
@@ -43,12 +55,12 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Preparación</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unidad</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vence en (días)</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" id="col-unit">Unidad</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" id="col-expiry">Vence en (días)</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
                             </tr>
                         </thead>
-                        <tbody id="preparations-table-body" class="bg-white divide-y divide-gray-200"></tbody>
+                        <tbody id="production-table-body" class="bg-white divide-y divide-gray-200"></tbody>
                     </table>
                 </div>
             </div>
@@ -143,56 +155,91 @@
 
         let allPreparations = [];
         let allIngredients = [];
+        let allCompoundProducts = []; // NUEVO: para guardar los productos finales
         let currentRecipe = [];
 
 
         // --- Carga Inicial ---
         async function loadInitialData() {
             try {
-                const [preparationsRes, ingredientsRes] = await Promise.all([
+                const [preparationsRes, ingredientsRes, productsRes] = await Promise.all([
                     fetch(`${API_URL}?include=recipe`, { headers: { 'Authorization': `Bearer ${token}` } }), // Preparations
-                    fetch('/api/ingredients', { headers: { 'Authorization': `Bearer ${token}` } })
+                    fetch('/api/ingredients', { headers: { 'Authorization': `Bearer ${token}` } }),
+                    fetch('/api/products/compound', { headers: { 'Authorization': `Bearer ${token}` } }) // NUEVO: Cargar productos compuestos
                 ]);
                 allPreparations = await preparationsRes.json();
                 allIngredients = await ingredientsRes.json();
+                allCompoundProducts = await productsRes.json();
                 
-                // CORRECCIÓN: Usar la variable correcta y llamar a la función de filtrado inicial.
-                filterAndRenderTable();
+                // Renderizar la vista inicial (preparaciones)
+                renderCurrentView();
             } catch (error) {
                 showToast('Error al cargar datos iniciales.', 'error');
             }
         }
 
-        function filterAndRenderTable() {
-            const activeFilter = document.querySelector('.tab-btn.border-blue-500').dataset.filter;
-            const filteredPreparations = activeFilter === 'all' 
-                ? allPreparations 
-                : allPreparations.filter(p => p.usage_type === activeFilter);
-            renderPreparationsTable(filteredPreparations);
+        function renderCurrentView() {
+            const activeView = document.querySelector('.main-tab-btn.border-blue-500').dataset.view;
+            if (activeView === 'preparations') {
+                renderPreparationsView();
+            } else {
+                renderProductsView();
+            }
         }
 
-        function renderPreparationsTable(preparations) {
-            const tableBody = document.getElementById('preparations-table-body');
-            if (preparations.length === 0) {
+        function renderPreparationsView() {
+            document.getElementById('preparations-filter-container').style.display = 'flex';
+            document.getElementById('col-unit').style.display = '';
+            document.getElementById('col-expiry').style.display = '';
+            document.getElementById('add-new-product-btn').classList.add('hidden');
+
+            const activeFilter = document.querySelector('.filter-btn.bg-blue-100').dataset.filter;
+            const filteredData = activeFilter === 'all' 
+                ? allPreparations 
+                : allPreparations.filter(p => p.usage_type === activeFilter);
+            
+            renderTable(filteredData, 'preparation');
+        }
+
+        function renderProductsView() {
+            document.getElementById('preparations-filter-container').style.display = 'none';
+            document.getElementById('col-unit').style.display = 'none';
+            document.getElementById('col-expiry').style.display = 'none';
+            document.getElementById('add-new-product-btn').classList.remove('hidden');
+            renderTable(allCompoundProducts, 'product');
+        }
+
+        function renderTable(data, type) {
+            const tableBody = document.getElementById('production-table-body');
+            if (data.length === 0) {
                 tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-gray-500">No hay preparaciones para este filtro.</td></tr>`;
                 return;
             }
 
-            tableBody.innerHTML = preparations.map(p => {
-                const hasRecipe = p.recipe && p.recipe.length > 0;
+            tableBody.innerHTML = data.map(item => {
+                // La receta de productos viene en `item.components`, la de preparaciones en `item.recipe`
+                const recipe = type === 'product' ? item.components : item.recipe;
+                const hasRecipe = recipe && recipe.length > 0;
                 const recipeButtonClass = hasRecipe ? 'text-blue-600 hover:text-blue-900' : 'text-yellow-600 hover:text-yellow-800 font-bold';
                 const recipeButtonText = hasRecipe ? 'Receta' : '¡Falta Receta!';
 
+                // Ocultar columnas y botones no relevantes para productos
+                const unitCell = type === 'preparation' ? `<td class="px-4 py-3 text-sm text-gray-500">${item.unit_of_measure}</td>` : '';
+                const expiryCell = type === 'preparation' ? `<td class="px-4 py-3 text-sm text-gray-500">${item.estimated_expiry_days}</td>` : '';
+                const produceButton = type === 'preparation' ? `<button onclick='openProduceLotModal(${JSON.stringify(item)})' class="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full hover:bg-green-200" ${!hasRecipe ? 'disabled title="Añade una receta primero"' : ''}>Producir Lote</button>` : '';
+                const editButton = type === 'preparation' ? `<button onclick='editPreparation(${JSON.stringify(item)})' class="text-indigo-600 hover:text-indigo-900">Editar</button>` : '';
+                const deleteButton = type === 'preparation' ? `<button onclick="deletePreparation(${item.id})" class="text-red-600 hover:text-red-900">Eliminar</button>` : '';
+
                 return `
                 <tr>
-                    <td class="px-4 py-3 text-sm text-gray-900 font-medium">${p.name}</td>
-                    <td class="px-4 py-3 text-sm text-gray-500">${p.unit_of_measure}</td>
-                    <td class="px-4 py-3 text-sm text-gray-500">${p.estimated_expiry_days}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900 font-medium">${item.name}</td>
+                    ${unitCell}
+                    ${expiryCell}
                     <td class="px-4 py-3 text-sm font-medium space-x-2 whitespace-nowrap">
-                        <button onclick='openProduceLotModal(${JSON.stringify(p)})' class="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full hover:bg-green-200" ${!hasRecipe ? 'disabled title="Añade una receta primero"' : ''}>Producir Lote</button>
-                        <button onclick='openRecipeModal(${JSON.stringify(p)})' class="${recipeButtonClass}">${recipeButtonText}</button>
-                        <button onclick='editPreparation(${JSON.stringify(p)})' class="text-indigo-600 hover:text-indigo-900">Editar</button>
-                        <button onclick="deletePreparation(${p.id})" class="text-red-600 hover:text-red-900">Eliminar</button>
+                        ${produceButton}
+                        <button onclick='openRecipeModal(${JSON.stringify(item)}, "${type}")' class="${recipeButtonClass}">${recipeButtonText}</button>
+                        ${editButton}
+                        ${deleteButton}
                     </td>
                 </tr>
             `}).join('');
@@ -221,7 +268,7 @@
             if (response.ok) {
                 showToast(`Preparación ${id ? 'actualizada' : 'creada'}.`);
                 resetForm();
-                loadInitialData();
+                loadInitialData(); // Recarga todo
             } else {
                 const error = await response.json();
                 showToast(`Error: ${error.message}`, 'error');
@@ -250,7 +297,7 @@
             const response = await fetch(`${API_URL}/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
             if (response.ok) {
                 showToast('Preparación eliminada.');
-                loadInitialData();
+                loadInitialData(); // Recarga todo
             } else {
                 const error = await response.json();
                 showToast(`Error: ${error.message}`, 'error');
@@ -258,18 +305,29 @@
         }
 
         // --- Gestión de Recetas ---
-        async function openRecipeModal(preparation) {
-            document.getElementById('recipe-modal-title').innerText = preparation.name;
-            document.getElementById('recipe-preparation-id').value = preparation.id;
-            // NUEVO: Actualizar la unidad de medida en el campo de rendimiento
-            document.getElementById('recipe-yield-unit').innerText = preparation.unit_of_measure;
-            document.getElementById('recipe-yield').value = preparation.recipe_yield || 1;
+        async function openRecipeModal(item, type) {
+            document.getElementById('recipe-modal-title').innerText = item.name;
+            document.getElementById('recipe-preparation-id').value = item.id; // Usamos el mismo input para el ID
+            document.getElementById('recipe-modal').dataset.type = type; // Guardamos el tipo (product/preparation)
+
+            const yieldContainer = document.getElementById('recipe-yield').parentElement;
+            if (type === 'preparation') {
+                yieldContainer.style.display = 'block';
+                document.getElementById('recipe-yield-unit').innerText = item.unit_of_measure;
+                document.getElementById('recipe-yield').value = item.recipe_yield || 1;
+            } else {
+                yieldContainer.style.display = 'none';
+            }
             
-            const response = await fetch(`${API_URL}/${preparation.id}/recipe`, { headers: { 'Authorization': `Bearer ${token}` } });
+            // El endpoint varía según el tipo
+            const recipeUrl = type === 'preparation' 
+                ? `${API_URL}/${item.id}/recipe` 
+                : `/api/recipes/${item.id}`;
+            const response = await fetch(recipeUrl, { headers: { 'Authorization': `Bearer ${token}` } });
             currentRecipe = await response.json();
 
             // NUEVO: Poblar el selector con Insumos y Preparaciones
-            populateComponentSelect(preparation.id);
+            populateComponentSelect(type === 'preparation' ? item.id : null);
 
             renderRecipeList();
             openModal('recipe-modal');
@@ -282,8 +340,16 @@
                 return;
             }
             list.innerHTML = currentRecipe.map(item => {
-                const componentName = item.component_type === 'ingredient' ? item.ingredient.name : item.preparation.name;
-                const componentTypeLabel = item.component_type === 'ingredient' ? 'Insumo' : 'Preparación';
+                let componentName, componentTypeLabel;
+                if (item.component_type === 'ingredient') {
+                    // El objeto puede venir como 'ingredient' o 'Ingredient'
+                    const ingredient = item.ingredient || item.Ingredient;
+                    componentName = ingredient?.name || 'Insumo no encontrado';
+                    componentTypeLabel = 'Insumo';
+                } else {
+                    componentName = item.preparation?.name || 'Preparación no encontrada';
+                    componentTypeLabel = 'Preparación';
+                }
                 return `
                     <div class="flex justify-between items-center p-2 bg-gray-100 rounded">
                         <span>${componentName} <span class="text-xs text-gray-500">(${componentTypeLabel})</span></span>
@@ -322,8 +388,15 @@
                 return;
             }
 
-            const component = type === 'ingredient' ? allIngredients.find(i => i.id === id) : allPreparations.find(p => p.id === id);
-            currentRecipe.push({ component_id: id, component_type: type, quantity_required: quantity, [type]: { name: component.name } });
+            const component = type === 'ingredient' 
+                ? allIngredients.find(i => i.id === id) 
+                : allPreparations.find(p => p.id === id);
+            
+            // Construimos el objeto para que coincida con la estructura esperada por renderRecipeList
+            const newItem = { component_id: id, component_type: type, quantity_required: quantity };
+            newItem[type] = { name: component.name }; // Añade { ingredient: { name: '...' } } o { preparation: { name: '...' } }
+
+            currentRecipe.push(newItem);
             renderRecipeList();
         });
 
@@ -333,14 +406,20 @@
         }
 
         document.getElementById('save-recipe-btn').addEventListener('click', async () => {
-            const preparationId = document.getElementById('recipe-preparation-id').value;
+            const itemId = document.getElementById('recipe-preparation-id').value;
+            const itemType = document.getElementById('recipe-modal').dataset.type;
             const recipeYield = parseFloat(document.getElementById('recipe-yield').value);
             const recipeData = currentRecipe.map(item => ({ component_id: item.component_id, component_type: item.component_type, quantity_required: item.quantity_required }));
             
-            const response = await fetch(`${API_URL}/${preparationId}/recipe`, {
+            const url = itemType === 'preparation' ? `${API_URL}/${itemId}/recipe` : `/api/recipes/${itemId}`;
+            const body = itemType === 'preparation' 
+                ? { ingredients: recipeData, recipe_yield: recipeYield }
+                : { ingredients: recipeData };
+
+            const response = await fetch(url, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ ingredients: recipeData, recipe_yield: recipeYield })
+                body: JSON.stringify(body)
             });
 
             if (response.ok) {
@@ -444,17 +523,32 @@
 
         document.getElementById('cancel-edit-btn').addEventListener('click', resetForm);
 
-        document.querySelectorAll('.tab-btn').forEach(button => {
+        // NUEVO: Listeners para las pestañas principales
+        document.querySelectorAll('.main-tab-btn').forEach(button => {
             button.addEventListener('click', (e) => {
-                document.querySelectorAll('.tab-btn').forEach(btn => {
+                document.querySelectorAll('.main-tab-btn').forEach(btn => {
                     btn.classList.remove('border-blue-500', 'text-blue-600');
                     btn.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
                 });
                 e.currentTarget.classList.add('border-blue-500', 'text-blue-600');
                 e.currentTarget.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
-                filterAndRenderTable();
+                renderCurrentView();
             });
         });
+
+        // NUEVO: Listeners para los filtros de preparaciones
+        document.querySelectorAll('.filter-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                document.querySelectorAll('.filter-btn').forEach(btn => {
+                    btn.classList.remove('bg-blue-100', 'text-blue-700');
+                    btn.classList.add('bg-gray-200', 'text-gray-600');
+                });
+                e.currentTarget.classList.add('bg-blue-100', 'text-blue-700');
+                e.currentTarget.classList.remove('bg-gray-200', 'text-gray-600');
+                renderPreparationsView();
+            });
+        });
+
 
         document.addEventListener('DOMContentLoaded', loadInitialData);
     </script>

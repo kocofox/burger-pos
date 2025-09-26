@@ -173,20 +173,12 @@
             const stockInput = document.getElementById('product-stock');
             const stockLabel = document.querySelector('label[for="product-stock"]');
 
-            if (product.stock_type === 'COMPOUND') {
-                stockInput.value = product.stock; // Muestra el stock calculado
-                stockInput.disabled = true;
-                stockLabel.innerText = 'Stock (Calculado)';
-            } else {
-                // Si el usuario es cajero, el stock de productos simples tampoco es editable.
-                if (userRole === 'cashier') {
-                    stockInput.disabled = true;
-                    stockLabel.innerText = 'Stock (Solo Admin)';
-                }
-                stockInput.value = product.stock;
-                stockInput.disabled = false;
-                stockLabel.innerText = 'Stock';
-            }
+            // El stock nunca es editable directamente desde este formulario.
+            // Se calcula a partir de recetas o se añade desde la gestión de insumos.
+            stockInput.value = product.stock;
+            stockInput.disabled = true;
+            stockLabel.innerText = product.stock_type === 'COMPOUND' ? 'Stock (Calculado)' : 'Stock (No editable)';
+
             document.getElementById('cancel-edit-btn').classList.remove('hidden');
         }
 
